@@ -1,0 +1,6 @@
+Config:
+  addr: "localhost:8080"
+
+token: "null"
+username: "testuser"
+password: "testpass"

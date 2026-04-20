@@ -1,0 +1,5 @@
+config:
+  addr: "localhost:8080"
+
+auth_enabled: false
+max_clients: 6
