@@ -2,7 +2,7 @@ package protocol
 
 import "fmt"
 
-type ConnContext interface {
+type ConContext interface {
 	ID() string            // 获取连接的唯一标识
 	Send(m *Message) error // 给这个连接发送消息
 }
@@ -30,13 +30,14 @@ func (r *Router) Dispatch(msg *Message) error {
 	return handler(msg)
 }
 
-func Bind[T AuthMessage | ChatMessage | CmdMessage | SystemMessage](
+func Bind[T any](
 	logic func(*T) error) func(*Message) error {
 	return func(m *Message) error {
-		payload, err := GetPayload[T](m)
-		if err != nil {
-			return err
-		}
-		return logic(payload)
+		// payload, err := GetPayload[T](m)
+		// if err != nil {
+		// 	return err
+		// }
+		// return logic(payload)
+		return nil
 	}
 }
