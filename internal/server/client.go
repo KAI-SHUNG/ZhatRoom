@@ -46,7 +46,7 @@ func (c *Client) Read() {
 	for {
 		line, err := reader.ReadBytes('\n')
 		if err != nil {
-			fmt.Printf("[Client %s]: read error: %v, closing..\n", c.ID, err)
+			fmt.Printf("[Client %s]: Connection closed...", c.ID)
 			return
 		}
 		msg, err := protocol.FromJSON(line)
@@ -54,7 +54,7 @@ func (c *Client) Read() {
 			fmt.Printf("[Client %s]: failed to parse message: %v\n", c.ID, err)
 			return
 		}
-		fmt.Printf("[Client %s]: Received message: %s\n", c.ID, msg.Content)
+		fmt.Printf("[Client %s]: Received message: %+v\n", c.ID, *msg)
 
 		c.Hub.broadcast <- msg
 	}

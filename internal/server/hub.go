@@ -76,7 +76,6 @@ func (h *Hub) Run() {
 			}
 
 			h.mu.Lock()
-			client.Conn.Close()
 			delete(h.clients, client.ID)
 			fmt.Printf("[Hub]: Client %s unregistered\n", client.ID)
 			h.mu.Unlock()
@@ -102,18 +101,21 @@ func (h *Hub) Run() {
 				fmt.Printf("[Hub]: failed to create snowflake node: %v\n", err)
 				continue
 			}
-
 			h.mu.RLock()
+			client := h.clients[msg.FromID]
+			h.mu.RUnlock()
+
 			msg.ID = node.Generate().String()
 			// Save message to database
 			if err := h.db.NewMessage(*msg); err != nil {
 				fmt.Printf("[Hub]: failed to save message to database: %v\n", err)
-				h.mu.RUnlock()
 				continue
 			}
 			switch msg.Type {
 			case "chat":
 				// Broadcast message to all clients
+				h.mu.RLock()
+				fmt.Printf("[Hub]: Broadcasting message: %+v\n", *msg)
 				for _, client := range h.clients {
 					err := client.Send(msg)
 					if err != nil {
@@ -121,16 +123,17 @@ func (h *Hub) Run() {
 					}
 					fmt.Printf("[Hub]: Message sent to client: %s\n", client.ID)
 				}
+				h.mu.RUnlock()
 
 				// TODO: maybe Encapsulate to HandleCommand
 			case "command":
 				if msg.Content == "/exit" {
-					if client, ok := h.clients[msg.FromID]; ok {
-						h.unregister <- client
-					}
+					fmt.Printf("[Hub]: Received exit command from client id %s\n", msg.FromID)
+					go func(c *Client) {
+						h.unregister <- c
+						c.Conn.Close()
+					}(client)
 				}
-
-				h.mu.RUnlock()
 			}
 		}
 	}

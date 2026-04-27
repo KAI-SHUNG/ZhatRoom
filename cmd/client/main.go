@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 )
 
 func main() {
@@ -66,13 +65,14 @@ func main() {
 		for {
 			line, err := reader.ReadBytes('\n')
 			if err != nil {
-				fmt.Printf("read error: %v\n", err)
+				fmt.Println("Connection closed, exiting...")
+				exitChan <- true
 				return
 			}
 			msg, err := protocol.FromJSON(line)
 			if err != nil {
 				fmt.Printf("failed to parse message: %v\n", err)
-				return
+				continue
 			}
 
 			fmt.Printf("[%s]: %s\n", msg.From, msg.Content)
@@ -92,11 +92,10 @@ func main() {
 				continue
 			}
 			msg := &protocol.Message{
-				Type:      "chat",
-				From:      *nickname,
-				FromID:    *id,
-				CreatedAt: time.Now().Unix(),
-				Content:   line,
+				Type:    "chat",
+				From:    *nickname,
+				FromID:  *id,
+				Content: line,
 			}
 			if line[0] == '/' {
 				msg.Type = "command"
