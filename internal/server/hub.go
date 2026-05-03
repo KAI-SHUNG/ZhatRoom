@@ -15,7 +15,7 @@ type Hub struct {
 	unregister chan *Client
 	broadcast  chan *protocol.Message
 
-	db *storage
+	db *Storage
 
 	mu sync.RWMutex
 }
