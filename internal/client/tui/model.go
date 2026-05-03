@@ -40,5 +40,6 @@ func NewModel(id, nickname string, connector *Connector) *Model {
 func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		textinput.Blink,
+		waitForMessage(m.connector),
 	)
 }

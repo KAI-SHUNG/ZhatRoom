@@ -14,18 +14,32 @@ var (
 			Foreground(lipgloss.Color("240")).
 			SetString(strings.Repeat("─", 30))
 
-	msgStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
-	sysStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("43"))
+	msgStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
+	sysStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("43"))
+	otherStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("14"))
 )
 
-func renderMessages(msgs []protocol.Message) string {
+func renderMessages(msgs []protocol.Message, width int, myID string) string {
 	var b strings.Builder
 	for _, msg := range msgs {
+		var line string
 		if msg.Type == "system" {
-			b.WriteString(sysStyle.Render(fmt.Sprintf("  %s\n", msg.Content)))
+			line = sysStyle.
+				Width(width).
+				Align(lipgloss.Center).
+				Render(fmt.Sprintf("[SYSTEM]: %s", msg.Content))
+		} else if msg.FromID == myID {
+			line = msgStyle.
+				Width(width).
+				Align(lipgloss.Right).
+				Render(fmt.Sprintf("[You]: %s", msg.Content))
 		} else {
-			b.WriteString(msgStyle.Render(fmt.Sprintf("[%s]: %s\n", msg.From, msg.Content)))
+			line = otherStyle.
+				Width(width).
+				Align(lipgloss.Left).
+				Render(fmt.Sprintf("[%s]: %s", msg.From, msg.Content))
 		}
+		b.WriteString(line + "\n")
 	}
 	return b.String()
 }

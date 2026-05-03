@@ -26,7 +26,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				From:    "System",
 				Content: fmt.Sprintf("Welcome to ZhatRoom! You are %s (%s)", m.nickname, m.id),
 			})
-			m.viewport.SetContent(renderMessages(m.messages))
+			m.viewport.SetContent(renderMessages(m.messages, m.viewport.Width, m.id))
 			m.viewport.GotoBottom()
 			m.welcomeSent = true
 		}
@@ -79,7 +79,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case incomingMsg:
 		m.messages = append(m.messages, *msg.msg)
-		m.viewport.SetContent(renderMessages(m.messages))
+		m.viewport.SetContent(renderMessages(m.messages, m.viewport.Width, m.id))
 		m.viewport.GotoBottom()
 		cmds = append(cmds, waitForMessage(m.connector))
 
