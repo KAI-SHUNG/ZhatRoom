@@ -74,8 +74,7 @@ if [ ! -f "$INSTALL_DIR/authorized_keys" ]; then
     chmod 640 "$INSTALL_DIR/authorized_keys"
 fi
 
-chown -R zhat:zhatroom "$INSTALL_DIR"
-chown root:zhatroom "$INSTALL_DIR/authorized_keys"
+chown -R root:zhatroom "$INSTALL_DIR"
 echo "  Files installed"
 
 # ── 4. PostgreSQL via Docker ─────────────────────────────────────
