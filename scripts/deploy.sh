@@ -41,13 +41,13 @@ else
     echo "  User zhat already exists, added to zhatroom group"
 fi
 
-# chat: SSH entry user, no shell, in zhatroom group (friends SSH into this)
+# chat: SSH entry user, no shell, in zhatroom+docker group (friends SSH into this)
 if ! id chat &>/dev/null; then
-    useradd -r -s /usr/sbin/nologin -m -d /home/chat -G zhatroom chat
+    useradd -r -s /usr/sbin/nologin -m -d /home/chat -G zhatroom,docker chat
     echo "  Created user: chat (SSH gateway, nologin)"
 else
-    usermod -aG zhatroom chat
-    echo "  User chat already exists, added to zhatroom group"
+    usermod -aG zhatroom,docker chat
+    echo "  User chat already exists, added to zhatroom+docker group"
 fi
 
 # ── 2. Build binaries ────────────────────────────────────────────

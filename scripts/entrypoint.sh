@@ -14,8 +14,8 @@ if [ -z "$USER_ID" ] || [ -z "$USERNAME" ]; then
     exit 1
 fi
 
-# Validate user exists in PostgreSQL
-EXISTS=$(psql -h 127.0.0.1 -U postgres -d zhat_db -t -A \
+# Validate user exists in PostgreSQL (via Docker container)
+EXISTS=$(docker exec zhat_db psql -U postgres -d zhat_db -t -A \
     -c "SELECT COUNT(*) FROM users WHERE id = '$USER_ID';" 2>/dev/null)
 
 if [ "$EXISTS" != "1" ]; then
