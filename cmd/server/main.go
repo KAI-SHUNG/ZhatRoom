@@ -40,6 +40,11 @@ func main() {
 		fmt.Printf("[Server]: listen error: %v\n", err)
 		return
 	}
+	if err := os.Chmod(socketPath, 0660); err != nil {
+		fmt.Printf("[Server]: chmod error: %v\n", err)
+		ln.Close()
+		return
+	}
 	fmt.Printf("[Server]: Server is listening on %s\n", socketPath)
 
 	/** Initialize Hub

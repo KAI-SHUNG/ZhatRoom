@@ -74,3 +74,21 @@ func (s *Storage) ListUsers() ([]protocol.User, error) {
 func (s *Storage) DeleteUser(id string) error {
 	return s.DB.Where("id = ?", id).Delete(&protocol.User{}).Error
 }
+
+func (s *Storage) GetUserByNickname(nickname string) (*protocol.User, error) {
+	var user protocol.User
+	err := s.DB.Where("nickname = ?", nickname).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (s *Storage) UserExistsByNickname(nickname string) (bool, error) {
+	var count int64
+	err := s.DB.Model(&protocol.User{}).Where("nickname = ?", nickname).Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}

@@ -3,6 +3,8 @@ package main
 import (
 	"ZhatRoom/internal/server"
 	"bufio"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -49,8 +51,14 @@ func main() {
 	}
 }
 
+func generateUID() string {
+	b := make([]byte, 8)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
 func cmdUserAdd(db *server.Storage, username string) {
-	exists, err := db.UserExists(username)
+	exists, err := db.UserExistsByNickname(username)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "DB error: %v\n", err)
 		os.Exit(1)
@@ -71,12 +79,13 @@ func cmdUserAdd(db *server.Storage, username string) {
 		os.Exit(1)
 	}
 
-	if err := db.NewUser(username, username); err != nil {
+	uid := generateUID()
+	if err := db.NewUser(uid, username); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create user %s: %v\n", username, err)
 		os.Exit(1)
 	}
 
-	line := fmt.Sprintf(`command="/opt/zhatroom/entrypoint.sh %s",restrict %s`, username, pubkey)
+	line := fmt.Sprintf(`command="/opt/zhatroom/entrypoint.sh %s %s",restrict %s`, uid, username, pubkey)
 	f, err := os.OpenFile(authorizedKeysPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to open authorized_keys: %v\n", err)
@@ -88,7 +97,7 @@ func cmdUserAdd(db *server.Storage, username string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("User %s added successfully\n", username)
+	fmt.Printf("User %s added successfully (uid: %s)\n", username, uid)
 }
 
 func cmdUserList(db *server.Storage) {
@@ -101,41 +110,39 @@ func cmdUserList(db *server.Storage) {
 		fmt.Println("No users found")
 		return
 	}
+	fmt.Printf("  %-20s  %-20s\n", "UID", "Nickname")
+	fmt.Printf("  %-20s  %-20s\n", "-------------------", "--------------------")
 	for _, u := range users {
-		fmt.Printf("  %s  (%s)\n", u.ID, u.Nickname)
+		fmt.Printf("  %-20s  %-20s\n", u.ID, u.Nickname)
 	}
 }
 
 func cmdUserRemove(db *server.Storage, username string) {
-	exists, err := db.UserExists(username)
+	user, err := db.GetUserByNickname(username)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "DB error: %v\n", err)
-		os.Exit(1)
-	}
-	if !exists {
-		fmt.Fprintf(os.Stderr, "User %s does not exist\n", username)
+		fmt.Fprintf(os.Stderr, "User %s not found: %v\n", username, err)
 		os.Exit(1)
 	}
 
-	if err := db.DeleteUser(username); err != nil {
+	if err := db.DeleteUser(user.ID); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to delete user %s: %v\n", username, err)
 		os.Exit(1)
 	}
 
-	if err := removeKeyFromFile(authorizedKeysPath, username); err != nil {
+	if err := removeKeyFromFile(authorizedKeysPath, user.ID); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: user deleted from DB but failed to update authorized_keys: %v\n", err)
 	}
 
-	fmt.Printf("User %s removed successfully\n", username)
+	fmt.Printf("User %s (uid: %s) removed successfully\n", username, user.ID)
 }
 
-func removeKeyFromFile(path, username string) error {
+func removeKeyFromFile(path, uid string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
 
-	pattern := fmt.Sprintf("entrypoint.sh %s\"", username)
+	pattern := fmt.Sprintf("entrypoint.sh %s ", uid)
 	var out strings.Builder
 	for _, line := range strings.Split(string(data), "\n") {
 		if strings.TrimSpace(line) == "" {

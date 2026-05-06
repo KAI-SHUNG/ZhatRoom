@@ -21,23 +21,33 @@ INSTALL_DIR="/opt/zhatroom"
 echo "=== ZhatRoom Deployment ==="
 echo ""
 
-# ── 1. System users ──────────────────────────────────────────────
-echo "[1/7] Creating system users..."
+# ── 1. System users and group ────────────────────────────────────
+echo "[1/7] Creating system users and shared group..."
 
-# zhat: service user, no shell
-if ! id zhat &>/dev/null; then
-    useradd -r -s /usr/sbin/nologin -m -d "$INSTALL_DIR" zhat
-    echo "  Created user: zhat (service, nologin)"
+# Create shared group for socket access
+if ! getent group zhatroom &>/dev/null; then
+    groupadd zhatroom
+    echo "  Created group: zhatroom"
 else
-    echo "  User zhat already exists"
+    echo "  Group zhatroom already exists"
 fi
 
-# chat: SSH entry user, no shell (friends SSH into this)
+# zhat: service user, no shell, in zhatroom group
+if ! id zhat &>/dev/null; then
+    useradd -r -s /usr/sbin/nologin -m -d "$INSTALL_DIR" -G zhatroom zhat
+    echo "  Created user: zhat (service, nologin)"
+else
+    usermod -aG zhatroom zhat
+    echo "  User zhat already exists, added to zhatroom group"
+fi
+
+# chat: SSH entry user, no shell, in zhatroom group (friends SSH into this)
 if ! id chat &>/dev/null; then
-    useradd -r -s /usr/sbin/nologin -m -d /home/chat chat
+    useradd -r -s /usr/sbin/nologin -m -d /home/chat -G zhatroom chat
     echo "  Created user: chat (SSH gateway, nologin)"
 else
-    echo "  User chat already exists"
+    usermod -aG zhatroom chat
+    echo "  User chat already exists, added to zhatroom group"
 fi
 
 # ── 2. Build binaries ────────────────────────────────────────────
