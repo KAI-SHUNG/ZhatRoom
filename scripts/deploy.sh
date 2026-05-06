@@ -71,7 +71,7 @@ chmod +x "$INSTALL_DIR/entrypoint.sh"
 # Create empty authorized_keys if not exists
 if [ ! -f "$INSTALL_DIR/authorized_keys" ]; then
     touch "$INSTALL_DIR/authorized_keys"
-    chmod 600 "$INSTALL_DIR/authorized_keys"
+    chmod 640 "$INSTALL_DIR/authorized_keys"
 fi
 
 chown -R zhat:zhat "$INSTALL_DIR"

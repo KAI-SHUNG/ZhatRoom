@@ -86,7 +86,7 @@ func cmdUserAdd(db *server.Storage, username string) {
 	}
 
 	line := fmt.Sprintf(`command="/opt/zhatroom/entrypoint.sh %s %s",restrict %s`, uid, username, pubkey)
-	f, err := os.OpenFile(authorizedKeysPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(authorizedKeysPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to open authorized_keys: %v\n", err)
 		os.Exit(1)
@@ -153,5 +153,5 @@ func removeKeyFromFile(path, uid string) error {
 		}
 	}
 
-	return os.WriteFile(path, []byte(out.String()), 0600)
+	return os.WriteFile(path, []byte(out.String()), 0640)
 }
