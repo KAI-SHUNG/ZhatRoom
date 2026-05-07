@@ -5,11 +5,11 @@
 # Usage: sudo ./scripts/deploy.sh
 #
 # This script will:
-#   1. Create system users (zhat for service, chat for SSH access)
+#   1. Create chat system user
 #   2. Build Go binaries
-#   3. Set up /opt/zhatroom/ directory
+#   3. Set up /opt/zhatroom/ directory (all owned by chat)
 #   4. Start PostgreSQL via Docker
-#   5. Install and enable systemd service
+#   5. Install and enable systemd service (runs as chat)
 #   6. Configure SSH for the chat user
 
 set -e
@@ -21,33 +21,15 @@ INSTALL_DIR="/opt/zhatroom"
 echo "=== ZhatRoom Deployment ==="
 echo ""
 
-# ── 1. System users and group ────────────────────────────────────
-echo "[1/7] Creating system users and shared group..."
+# ── 1. System user ────────────────────────────────────────────────
+echo "[1/7] Creating chat system user..."
 
-# Create shared group for socket access
-if ! getent group zhatroom &>/dev/null; then
-    groupadd zhatroom
-    echo "  Created group: zhatroom"
-else
-    echo "  Group zhatroom already exists"
-fi
-
-# zhat: service user, no shell, in zhatroom group
-if ! id zhat &>/dev/null; then
-    useradd -r -s /usr/sbin/nologin -m -d "$INSTALL_DIR" -G zhatroom zhat
-    echo "  Created user: zhat (service, nologin)"
-else
-    usermod -aG zhatroom zhat
-    echo "  User zhat already exists, added to zhatroom group"
-fi
-
-# chat: SSH entry user, no shell, in zhatroom+docker group (friends SSH into this)
 if ! id chat &>/dev/null; then
-    useradd -r -s /usr/sbin/nologin -m -d /home/chat -G zhatroom,docker chat
-    echo "  Created user: chat (SSH gateway, nologin)"
+    useradd -r -s /usr/sbin/nologin -m -d /home/chat -G docker chat
+    echo "  Created user: chat (nologin, docker group)"
 else
-    usermod -aG zhatroom,docker chat
-    echo "  User chat already exists, added to zhatroom+docker group"
+    usermod -aG docker chat
+    echo "  User chat already exists"
 fi
 
 # ── 2. Build binaries ────────────────────────────────────────────
@@ -71,10 +53,11 @@ chmod +x "$INSTALL_DIR/entrypoint.sh"
 # Create empty authorized_keys if not exists
 if [ ! -f "$INSTALL_DIR/authorized_keys" ]; then
     touch "$INSTALL_DIR/authorized_keys"
-    chmod 640 "$INSTALL_DIR/authorized_keys"
+    chmod 600 "$INSTALL_DIR/authorized_keys"
 fi
 
-chown -R root:zhatroom "$INSTALL_DIR"
+# Everything owned by chat
+chown -R chat:chat "$INSTALL_DIR"
 echo "  Files installed"
 
 # ── 4. PostgreSQL via Docker ─────────────────────────────────────
@@ -103,13 +86,6 @@ echo "  systemd service installed and started"
 # ── 6. SSH configuration ─────────────────────────────────────────
 echo "[6/7] Configuring SSH for chat user..."
 
-SSHD_CONFIG="/etc/ssh/sshd_config"
-MATCH_BLOCK="Match User chat
-    AuthorizedKeysFile $INSTALL_DIR/authorized_keys
-    PermitTTY yes
-    ForceCommand internal-sftp"
-
-# Check if there's a conf.d directory
 if [ -d /etc/ssh/sshd_config.d ]; then
     cat > /etc/ssh/sshd_config.d/99-zhatroom.conf <<EOF
 Match User chat
@@ -118,6 +94,7 @@ Match User chat
 EOF
     echo "  SSH configured via /etc/ssh/sshd_config.d/99-zhatroom.conf"
 else
+    SSHD_CONFIG="/etc/ssh/sshd_config"
     if ! grep -q "Match User chat" "$SSHD_CONFIG"; then
         echo "" >> "$SSHD_CONFIG"
         echo "Match User chat" >> "$SSHD_CONFIG"
@@ -127,7 +104,6 @@ else
     echo "  SSH configured via $SSHD_CONFIG"
 fi
 
-# Ensure PasswordAuthentication is no for chat
 systemctl reload sshd 2>/dev/null || service ssh reload 2>/dev/null || true
 echo "  SSH reloaded"
 
@@ -142,8 +118,5 @@ echo "  Service status:"
 systemctl status zhatroom --no-pager -l 2>/dev/null || echo "  (check with: systemctl status zhatroom)"
 echo ""
 echo "  Next steps:"
-echo "    1. Add a user:  zhatroom user add <name> < their_key.pub"
+echo "    1. Add a user:  sudo zhatroom user add <name> < their_key.pub"
 echo "    2. Ask them to: ssh chat@$(hostname -I | awk '{print $1}')"
-echo ""
-echo "  To check if zhat user has no shell (should fail):"
-echo "    sudo -u zhat bash"

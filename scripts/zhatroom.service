@@ -4,18 +4,12 @@ After=network.target docker.service
 
 [Service]
 Type=simple
-User=zhat
-Group=zhat
+User=chat
+Group=chat
 WorkingDirectory=/opt/zhatroom
 ExecStart=/opt/zhatroom/bin/server
 Restart=always
 RestartSec=5
-
-# Security hardening
-NoNewPrivileges=yes
-ProtectSystem=strict
-ProtectHome=yes
-ReadWritePaths=/opt/zhatroom /tmp
 
 [Install]
 WantedBy=multi-user.target

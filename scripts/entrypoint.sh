@@ -1,6 +1,6 @@
 #!/bin/bash
 # SSH forced-command script for ZhatRoom
-# Called from authorized_keys: command="/opt/zhatroom/entrypoint.sh <uid> <username>",restrict ...
+# Called from authorized_keys: command="/opt/zhatroom/entrypoint.sh <uid> <username>",no-port-forwarding,no-X11-forwarding,no-agent-forwarding ...
 #
 # Validates the user exists in the database, then launches the chat client.
 
