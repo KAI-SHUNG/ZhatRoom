@@ -1,16 +1,20 @@
 #!/bin/bash
-# SSH forced-command script for ZhatRoom
-# Called from authorized_keys: command="/opt/zhatroom/entrypoint.sh <uid> <username>",no-port-forwarding,no-X11-forwarding,no-agent-forwarding ...
+# ZhatRoom SSH entrypoint
+# Two ways to run:
+#   1. Via authorized_keys command= (primary): entrypoint.sh <uid> <username>
+#   2. Via shell fallback (chat user's shell is set to this script)
 #
-# Validates the user exists in the database, then launches the chat client.
+# When the client exits, the shell exits, SSH disconnects immediately.
 
-set -e
+# Prevent Ctrl+C / Ctrl+Z escape — exit the session cleanly
+trap 'exit 0' INT TERM
+trap '' TSTP
 
 USER_ID="$1"
 USERNAME="$2"
 
 if [ -z "$USER_ID" ] || [ -z "$USERNAME" ]; then
-    echo "Usage: entrypoint.sh <uid> <username>"
+    echo "Access denied."
     exit 1
 fi
 
