@@ -1,23 +1,93 @@
 #!/bin/bash
 # ZhatRoom deployment script
-# Run as root on a fresh server to set up the full ZhatRoom environment.
 #
-# Usage: sudo ./scripts/deploy.sh
+# Usage:
+#   sudo ./scripts/deploy.sh           # Full deploy (first time)
+#   sudo ./scripts/deploy.sh --update  # Update only (build → install → restart)
 #
-# This script will:
+# Full deploy will:
 #   1. Create chat system user
 #   2. Build Go binaries
 #   3. Set up /opt/zhatroom/ directory (all owned by chat)
 #   4. Start PostgreSQL via Docker
 #   5. Install and enable systemd service (runs as chat)
 #   6. Configure SSH for the chat user
+#
+# Update mode will:
+#   1. Build Go binaries
+#   2. Install to /opt/zhatroom/
+#   3. Clean stale socket and restart service
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 INSTALL_DIR="/opt/zhatroom"
+SOCKET_PATH="/tmp/zhatroom.sock"
 
+UPDATE_ONLY=false
+if [ "$1" = "--update" ] || [ "$1" = "-u" ]; then
+    UPDATE_ONLY=true
+fi
+
+# ── Build & Install (shared by both modes) ─────────────────────────
+build_and_install() {
+    echo "[BUILD] Building Go binaries..."
+    cd "$PROJECT_DIR"
+    go build -o bin/server cmd/server/main.go
+    go build -o bin/client cmd/client/main.go
+    go build -o bin/zhatroom cmd/zhatroom/main.go
+    echo "  Binaries built: server, client, zhatroom"
+
+    echo "[INSTALL] Installing files to $INSTALL_DIR..."
+    mkdir -p "$INSTALL_DIR/bin"
+    cp bin/server "$INSTALL_DIR/bin/server"
+    cp bin/client "$INSTALL_DIR/bin/client"
+    cp bin/zhatroom /usr/local/bin/zhatroom
+    cp scripts/entrypoint.sh "$INSTALL_DIR/entrypoint.sh"
+    chmod +x "$INSTALL_DIR/entrypoint.sh"
+
+    # Create empty authorized_keys if not exists
+    if [ ! -f "$INSTALL_DIR/authorized_keys" ]; then
+        touch "$INSTALL_DIR/authorized_keys"
+        chmod 600 "$INSTALL_DIR/authorized_keys"
+    fi
+
+    chown -R chat:chat "$INSTALL_DIR"
+    echo "  Files installed"
+}
+
+# ── Clean stale socket & restart ───────────────────────────────────
+restart_service() {
+    # Remove stale socket left by a crashed server
+    if [ -e "$SOCKET_PATH" ]; then
+        echo "[RESTART] Removing stale socket: $SOCKET_PATH"
+        rm -f "$SOCKET_PATH"
+    fi
+
+    echo "[RESTART] Restarting zhatroom service..."
+    systemctl restart zhatroom
+    sleep 1
+    systemctl status zhatroom --no-pager -l 2>/dev/null || true
+    echo "  Service restarted"
+}
+
+# ════════════════════════════════════════════════════════════════════
+# Update mode
+# ════════════════════════════════════════════════════════════════════
+if [ "$UPDATE_ONLY" = true ]; then
+    echo "=== ZhatRoom Update ==="
+    echo ""
+    build_and_install
+    restart_service
+    echo ""
+    echo "=== Update Complete ==="
+    exit 0
+fi
+
+# ════════════════════════════════════════════════════════════════════
+# Full deploy
+# ════════════════════════════════════════════════════════════════════
 echo "=== ZhatRoom Deployment ==="
 echo ""
 
@@ -33,33 +103,9 @@ else
     echo "  User chat already exists, shell set to /bin/sh"
 fi
 
-# ── 2. Build binaries ────────────────────────────────────────────
-echo "[2/7] Building Go binaries..."
-cd "$PROJECT_DIR"
-go build -o bin/server cmd/server/main.go
-go build -o bin/client cmd/client/main.go
-go build -o bin/zhatroom cmd/zhatroom/main.go
-echo "  Binaries built: server, client, zhatroom"
-
-# ── 3. Install files ─────────────────────────────────────────────
-echo "[3/7] Installing files to $INSTALL_DIR..."
-
-mkdir -p "$INSTALL_DIR/bin"
-cp bin/server "$INSTALL_DIR/bin/server"
-cp bin/client "$INSTALL_DIR/bin/client"
-cp bin/zhatroom /usr/local/bin/zhatroom
-cp scripts/entrypoint.sh "$INSTALL_DIR/entrypoint.sh"
-chmod +x "$INSTALL_DIR/entrypoint.sh"
-
-# Create empty authorized_keys if not exists
-if [ ! -f "$INSTALL_DIR/authorized_keys" ]; then
-    touch "$INSTALL_DIR/authorized_keys"
-    chmod 600 "$INSTALL_DIR/authorized_keys"
-fi
-
-# Everything owned by chat
-chown -R chat:chat "$INSTALL_DIR"
-echo "  Files installed"
+# ── 2-3. Build & Install ──────────────────────────────────────────
+echo "[2/7] & [3/7] Building and installing..."
+build_and_install
 
 # ── 4. PostgreSQL via Docker ─────────────────────────────────────
 echo "[4/7] Starting PostgreSQL..."
@@ -81,8 +127,6 @@ echo "[5/7] Installing systemd service..."
 cp scripts/zhatroom.service /etc/systemd/system/zhatroom.service
 systemctl daemon-reload
 systemctl enable zhatroom
-systemctl restart zhatroom
-echo "  systemd service installed and started"
 
 # ── 6. SSH configuration ─────────────────────────────────────────
 echo "[6/7] Configuring SSH for chat user..."
@@ -108,15 +152,12 @@ fi
 systemctl reload sshd 2>/dev/null || service ssh reload 2>/dev/null || true
 echo "  SSH reloaded"
 
-# ── 7. Verify ─────────────────────────────────────────────────────
-echo "[7/7] Verifying deployment..."
-sleep 2
+# ── 7. Start service ─────────────────────────────────────────────
+echo "[7/7] Starting service..."
+restart_service
 
 echo ""
 echo "=== Deployment Complete ==="
-echo ""
-echo "  Service status:"
-systemctl status zhatroom --no-pager -l 2>/dev/null || echo "  (check with: systemctl status zhatroom)"
 echo ""
 echo "  Next steps:"
 echo "    1. Add a user:  sudo zhatroom user add <name> < their_key.pub"
