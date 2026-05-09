@@ -18,11 +18,9 @@ if [ -z "$USER_ID" ] || [ -z "$USERNAME" ]; then
     exit 1
 fi
 
-# Validate user exists in PostgreSQL (via Docker container)
-QUERY="SELECT COUNT(*) FROM users WHERE id = '${USER_ID}';"
-EXISTS=$(docker exec zhat_db psql -U postgres -d zhat_db -t -A -c "$QUERY" 2>/dev/null)
-
-if [ "$EXISTS" != "1" ]; then
+# Validate user via zhatroom server (no direct DB access)
+RESULT=$(echo "validate,${USER_ID}" | socat - UNIX-CONNECT:/tmp/zhatroom.sock 2>/dev/null)
+if [ "$RESULT" != "ok" ]; then
     echo "Access denied: user not registered."
     echo "Contact the server admin to get an account."
     exit 1

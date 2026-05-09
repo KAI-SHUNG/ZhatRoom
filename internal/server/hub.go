@@ -144,6 +144,16 @@ func (h *Hub) Run() {
 	}
 }
 
+// Validate checks if a user ID exists in the database.
+func (h *Hub) Validate(uid string) bool {
+	exist, err := h.db.UserExists(uid)
+	if err != nil {
+		fmt.Printf("[Hub]: validate error: %v\n", err)
+		return false
+	}
+	return exist
+}
+
 /** Handle new client connection
  * * Check for max clients and user existence
  */

@@ -75,7 +75,20 @@ func main() {
 				conn.Close()
 				continue
 			}
-			parts := strings.Split(string(line), ",")
+			s := strings.TrimSpace(string(line))
+
+			if strings.HasPrefix(s, "validate,") {
+				uid := strings.TrimPrefix(s, "validate,")
+				if hub.Validate(uid) {
+					fmt.Fprint(conn, "ok\n")
+				} else {
+					fmt.Fprint(conn, "denied\n")
+				}
+				conn.Close()
+				continue
+			}
+
+			parts := strings.Split(s, ",")
 			if len(parts) != 2 {
 				fmt.Println("[Server]: Invalid client info format")
 				conn.Close()
