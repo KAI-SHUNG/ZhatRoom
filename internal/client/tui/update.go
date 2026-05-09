@@ -65,11 +65,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case tea.KeyPgUp:
-			m.viewport.HalfViewUp()
+			m.viewport.HalfPageUp()
 			return m, nil
 
 		case tea.KeyPgDown:
-			m.viewport.HalfViewDown()
+			m.viewport.HalfPageDown()
 			return m, nil
 		}
 
@@ -84,6 +84,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.GotoBottom()
 		}
 		cmds = append(cmds, waitForMessage(m.connector))
+
+	case tea.MouseMsg:
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+		cmds = append(cmds, cmd)
 
 	case errMsg:
 		m.err = msg.err
