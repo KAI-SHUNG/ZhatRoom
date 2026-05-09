@@ -24,19 +24,13 @@ echo ""
 # ── 1. System user ────────────────────────────────────────────────
 echo "[1/7] Creating chat system user..."
 
-# Register entrypoint as a valid shell
-if ! grep -q "$INSTALL_DIR/entrypoint.sh" /etc/shells 2>/dev/null; then
-    echo "$INSTALL_DIR/entrypoint.sh" >> /etc/shells
-    echo "  Registered entrypoint.sh as valid shell"
-fi
-
 if ! id chat &>/dev/null; then
-    useradd -r -s "$INSTALL_DIR/entrypoint.sh" -m -d /home/chat -G docker chat
-    echo "  Created user: chat (shell=entrypoint.sh, docker group)"
+    useradd -r -s /bin/sh -m -d /home/chat -G docker chat
+    echo "  Created user: chat (shell=/bin/sh, docker group)"
 else
-    usermod -s "$INSTALL_DIR/entrypoint.sh" chat
+    usermod -s /bin/sh chat
     usermod -aG docker chat
-    echo "  User chat already exists, shell updated"
+    echo "  User chat already exists, shell set to /bin/sh"
 fi
 
 # ── 2. Build binaries ────────────────────────────────────────────
