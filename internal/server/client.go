@@ -12,6 +12,7 @@ type Client struct {
 	Conn     net.Conn
 	ID       string
 	Nickname string
+	room     *Room
 }
 
 /** Send message to client
