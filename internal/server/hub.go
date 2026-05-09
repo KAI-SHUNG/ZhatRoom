@@ -56,6 +56,9 @@ func (h *Hub) Run() {
 			}
 
 			h.mu.Lock()
+			if old, ok := h.clients[client.ID]; ok {
+				old.Conn.Close()
+			}
 			h.clients[client.ID] = client
 			fmt.Printf("[Hub]: Client %s registered\n", client.ID)
 			h.mu.Unlock()
@@ -76,8 +79,10 @@ func (h *Hub) Run() {
 			}
 
 			h.mu.Lock()
-			delete(h.clients, client.ID)
-			fmt.Printf("[Hub]: Client %s unregistered\n", client.ID)
+			if cur, ok := h.clients[client.ID]; ok && cur == client {
+				delete(h.clients, client.ID)
+				fmt.Printf("[Hub]: Client %s unregistered\n", client.ID)
+			}
 			h.mu.Unlock()
 		/**
 		 * * Messages for broadcast
