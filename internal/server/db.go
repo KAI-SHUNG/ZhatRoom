@@ -11,9 +11,7 @@ type Storage struct {
 	DB *gorm.DB
 }
 
-func InitDB() *Storage {
-	dsn := "host=127.0.0.1 user=postgres dbname=zhat_db password=zhatroom port=5432 sslmode=disable TimeZone=Asia/Shanghai"
-
+func InitDB(dsn string) *Storage {
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect to database: " + err.Error())

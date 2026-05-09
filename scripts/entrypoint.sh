@@ -10,6 +10,8 @@
 trap 'exit 0' INT TERM
 trap '' TSTP
 
+SOCKET_PATH="/tmp/zhatroom.sock"
+
 USER_ID="$1"
 USERNAME="$2"
 
@@ -19,11 +21,11 @@ if [ -z "$USER_ID" ] || [ -z "$USERNAME" ]; then
 fi
 
 # Validate user via zhatroom server (no direct DB access)
-RESULT=$(echo "validate,${USER_ID}" | socat - UNIX-CONNECT:/tmp/zhatroom.sock 2>/dev/null)
+RESULT=$(echo "validate,${USER_ID}" | socat - UNIX-CONNECT:"${SOCKET_PATH}" 2>/dev/null)
 if [ "$RESULT" != "ok" ]; then
     echo "Access denied: user not registered."
     echo "Contact the server admin to get an account."
     exit 1
 fi
 
-exec /opt/zhatroom/bin/client --id "$USER_ID" --usr "$USERNAME" --socket /tmp/zhatroom.sock
+exec /opt/zhatroom/bin/client --id "$USER_ID" --usr "$USERNAME" --socket "${SOCKET_PATH}"

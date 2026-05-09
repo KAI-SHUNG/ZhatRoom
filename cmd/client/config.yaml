@@ -1,6 +1,3 @@
-Config:
-  addr: "localhost:8080"
-
-token: "null"
-username: "testuser"
-password: "testpass"
+# All fields have defaults. Only override what you need.
+# socket: /tmp/zhatroom.sock
+# username: Anonymous

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"ZhatRoom/internal/config"
 	"ZhatRoom/internal/protocol"
 	"fmt"
 	"net"
@@ -15,21 +16,26 @@ type Hub struct {
 	unregister chan *Client
 	broadcast  chan *protocol.Message
 
-	db *Storage
+	db           *Storage
+	snowflake    *snowflake.Node
+	maxClients   int
 
 	mu sync.RWMutex
 }
 
-/** Create a new Hub instance
- * * Return pointer to Hub
- */
-func NewHub() *Hub {
+func NewHub(cfg config.ServerConfig) *Hub {
+	node, err := snowflake.NewNode(1)
+	if err != nil {
+		panic("failed to create snowflake node: " + err.Error())
+	}
 	return &Hub{
-		clients:    make(map[string]*Client, MAX_ONLINE_CLIENTS),
+		clients:    make(map[string]*Client, cfg.MaxClients),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		broadcast:  make(chan *protocol.Message),
-		db:         InitDB(),
+		db:         InitDB(cfg.DB.DSN()),
+		snowflake:  node,
+		maxClients: cfg.MaxClients,
 	}
 }
 
@@ -100,17 +106,11 @@ func (h *Hub) Run() {
 				return
 			}
 
-			// Generate unique ID for message
-			node, err := snowflake.NewNode(1)
-			if err != nil {
-				fmt.Printf("[Hub]: failed to create snowflake node: %v\n", err)
-				continue
-			}
 			h.mu.RLock()
 			client := h.clients[msg.FromID]
 			h.mu.RUnlock()
 
-			msg.ID = node.Generate().String()
+			msg.ID = h.snowflake.Generate().String()
 			// Save message to database
 			if err := h.db.NewMessage(*msg); err != nil {
 				fmt.Printf("[Hub]: failed to save message to database: %v\n", err)
@@ -164,7 +164,7 @@ func (h *Hub) HandleNewConn(conn net.Conn, id string, nickname string) {
 	h.mu.RLock()
 	currentClients := len(h.clients)
 	h.mu.RUnlock()
-	if currentClients >= MAX_ONLINE_CLIENTS {
+	if currentClients >= h.maxClients {
 		fmt.Fprint(conn, "Reached Max Online Clients. Connection closed.")
 		conn.Close()
 		return

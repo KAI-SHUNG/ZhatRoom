@@ -2,41 +2,47 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 )
 
-func LoadConfig[T ServerConfig | ClientConfig](
-	configPath string,
-	config *T) error {
+func setServerDefaults(v *viper.Viper) {
+	v.SetDefault("socket", "/tmp/zhatroom.sock")
+	v.SetDefault("max_clients", 100)
+	v.SetDefault("db.host", "127.0.0.1")
+	v.SetDefault("db.port", 5432)
+	v.SetDefault("db.user", "postgres")
+	v.SetDefault("db.name", "zhat_db")
+	v.SetDefault("db.sslmode", "disable")
+	v.SetDefault("db.timezone", "Asia/Shanghai")
+}
 
-	viper.SetConfigFile(configPath)
-	viper.SetConfigType("yaml")
+func setClientDefaults(v *viper.Viper) {
+	v.SetDefault("socket", "/tmp/zhatroom.sock")
+	v.SetDefault("username", "Anonymous")
+}
 
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			return fmt.Errorf("config file not found: %w", err)
-		}
-		return fmt.Errorf("error reading config file: %w", err)
+func Load(path string, target any) error {
+	v := viper.New()
+	v.SetConfigFile(path)
+	v.SetConfigType("yaml")
+	v.SetEnvPrefix("ZHATROOM")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	switch target.(type) {
+	case *ServerConfig:
+		setServerDefaults(v)
+	case *ClientConfig:
+		setClientDefaults(v)
 	}
-	if err := viper.Unmarshal(config); err != nil {
-		return fmt.Errorf("error unmarshaling config: %w", err)
+
+	if err := v.ReadInConfig(); err != nil {
+		return fmt.Errorf("read config: %w", err)
 	}
-
-	fmt.Printf("Config loaded successfully: %+v\n", config)
-
-	viper.OnConfigChange(func(e fsnotify.Event) {
-		fmt.Printf("Config file changed: %s\n", e.Name)
-		temp := config
-		if err := viper.Unmarshal(temp); err != nil {
-			fmt.Printf("Error unmarshaling config: %v\n", err)
-		} else {
-			config = temp
-			fmt.Printf("Config reloaded successfully\n")
-		}
-	})
-	viper.WatchConfig()
-
+	if err := v.Unmarshal(target); err != nil {
+		return fmt.Errorf("unmarshal config: %w", err)
+	}
 	return nil
 }

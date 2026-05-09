@@ -1,5 +1,3 @@
-config:
-  addr: "localhost:8080"
-
-auth_enabled: false
-max_clients: 6
+# All fields have defaults. Only override what you need.
+db:
+  password: zhatroom

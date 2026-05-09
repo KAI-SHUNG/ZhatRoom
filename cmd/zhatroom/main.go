@@ -1,10 +1,12 @@
 package main
 
 import (
+	"ZhatRoom/internal/config"
 	"ZhatRoom/internal/server"
 	"bufio"
 	"crypto/rand"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -13,40 +15,52 @@ import (
 const authorizedKeysPath = "/opt/zhatroom/authorized_keys"
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: zhatroom <user add|user list|user remove> [args]\n")
+	cfgPath := flag.String("config", "config.yaml", "config file path")
+	flag.Parse()
+
+	if flag.NArg() < 1 {
+		fmt.Fprintf(os.Stderr, "Usage: zhatroom [--config path] <user add|user list|user remove> [args]\n")
 		os.Exit(1)
 	}
 
-	db := server.InitDB()
+	var cfg config.ServerConfig
+	if err := config.Load(*cfgPath, &cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
+		os.Exit(1)
+	}
 
-	switch os.Args[1] {
+	db := server.InitDB(cfg.DB.DSN())
+	defer db.Close()
+
+	args := flag.Args()
+
+	switch args[0] {
 	case "user":
-		if len(os.Args) < 3 {
+		if len(args) < 2 {
 			fmt.Fprintf(os.Stderr, "Usage: zhatroom user <add|list|remove> [username]\n")
 			os.Exit(1)
 		}
-		switch os.Args[2] {
+		switch args[1] {
 		case "add":
-			if len(os.Args) < 4 {
+			if len(args) < 3 {
 				fmt.Fprintf(os.Stderr, "Usage: zhatroom user add <username> < pubkey\n")
 				os.Exit(1)
 			}
-			cmdUserAdd(db, os.Args[3])
+			cmdUserAdd(db, args[2])
 		case "list":
 			cmdUserList(db)
 		case "remove":
-			if len(os.Args) < 4 {
+			if len(args) < 3 {
 				fmt.Fprintf(os.Stderr, "Usage: zhatroom user remove <username>\n")
 				os.Exit(1)
 			}
-			cmdUserRemove(db, os.Args[3])
+			cmdUserRemove(db, args[2])
 		default:
-			fmt.Fprintf(os.Stderr, "Unknown subcommand: %s\n", os.Args[2])
+			fmt.Fprintf(os.Stderr, "Unknown subcommand: %s\n", args[1])
 			os.Exit(1)
 		}
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
+		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", args[0])
 		os.Exit(1)
 	}
 }

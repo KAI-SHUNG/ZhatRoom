@@ -1,36 +1,29 @@
 package config
 
+import "fmt"
+
+type DBConfig struct {
+	Host     string `yaml:"host"      mapstructure:"host"`
+	Port     int    `yaml:"port"      mapstructure:"port"`
+	User     string `yaml:"user"      mapstructure:"user"`
+	Password string `yaml:"password"  mapstructure:"password"`
+	Name     string `yaml:"name"      mapstructure:"name"`
+	SSLMode  string `yaml:"sslmode"   mapstructure:"sslmode"`
+	TZ       string `yaml:"timezone"  mapstructure:"timezone"`
+}
+
+func (d DBConfig) DSN() string {
+	return fmt.Sprintf("host=%s user=%s dbname=%s password=%s port=%d sslmode=%s TimeZone=%s",
+		d.Host, d.User, d.Name, d.Password, d.Port, d.SSLMode, d.TZ)
+}
+
 type ServerConfig struct {
-	Config      Config `yaml:",inline"`
-	AuthEnabled bool   `yaml:"auth_enabled"`
-	MAXClient   int    `yaml:"max_client"`
+	Socket     string   `yaml:"socket"       mapstructure:"socket"`
+	MaxClients int      `yaml:"max_clients"  mapstructure:"max_clients"`
+	DB         DBConfig `yaml:"db"           mapstructure:"db"`
 }
 
 type ClientConfig struct {
-	Config   Config `yaml:",inline"`
-	Token    string `yaml:"token"`
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
-}
-
-type Config struct {
-	Addr string `yaml:"addr"`
-}
-
-// AuthConfig holds authentication related configuration.
-type AuthConfig struct {
-	// Type can be "none", "jwt", or "session"
-	Type string `yaml:"type"`
-	// Secret used to sign JWT tokens (HMAC)
-	JWTSecret string `yaml:"jwt_secret"`
-	// Access token TTL in seconds
-	AccessTTLSeconds int `yaml:"access_ttl_seconds"`
-	// Refresh token TTL in seconds (optional)
-	RefreshTTLSeconds int `yaml:"refresh_ttl_seconds"`
-	// Session store: "memory" or "redis"
-	SessionStore string `yaml:"session_store"`
-	// Redis address for session store (optional)
-	RedisAddr string `yaml:"redis_addr"`
-	// Password hash algorithm (e.g., "bcrypt")
-	PasswordHashAlgo string `yaml:"password_hash_algo"`
+	Socket   string `yaml:"socket"   mapstructure:"socket"`
+	Username string `yaml:"username" mapstructure:"username"`
 }

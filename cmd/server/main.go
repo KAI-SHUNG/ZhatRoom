@@ -1,8 +1,10 @@
 package main
 
 import (
+	"ZhatRoom/internal/config"
 	"ZhatRoom/internal/server"
 	"bufio"
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -13,9 +15,15 @@ import (
 )
 
 func main() {
-	/** Handle graceful shutdown
-	 * * Listen for TERMINATE signal (Ctrl+C)
-	 */
+	cfgPath := flag.String("config", "config.yaml", "config file path")
+	flag.Parse()
+
+	var cfg config.ServerConfig
+	if err := config.Load(*cfgPath, &cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
+		os.Exit(1)
+	}
+
 	exitChan := make(chan bool, 1)
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
@@ -25,33 +33,21 @@ func main() {
 		exitChan <- true
 	}()
 
-	/** Socket connection
-	 * * Delete existing socket file if it exists
-	 * TODO: HARD coded socket path
-	 */
-	socketPath := "/tmp/zhatroom.sock"
-	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(cfg.Socket); err != nil && !os.IsNotExist(err) {
 		fmt.Printf("[Server]: remove error: %v\n", err)
 		return
 	}
 	fmt.Print("[Server]: Removed existing socket file.\n")
-	ln, err := net.Listen("unix", socketPath)
+	ln, err := net.Listen("unix", cfg.Socket)
 	if err != nil {
 		fmt.Printf("[Server]: listen error: %v\n", err)
 		return
 	}
-	fmt.Printf("[Server]: Server is listening on %s\n", socketPath)
+	fmt.Printf("[Server]: Server is listening on %s\n", cfg.Socket)
 
-	/** Initialize Hub
-	 * * Run Hub in goroutine
-	 */
-	hub := server.NewHub()
+	hub := server.NewHub(cfg)
 	go hub.Run()
 
-	/** Accept connections
-	 * * Read client info
-	 * * Handle new connection in Hub
-	 */
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -101,10 +97,6 @@ func main() {
 		}
 	}()
 
-	/** Graceful shutdown
-	 * * Block and listen for exit signal
-	 * * Clean up ln and Hub
-	 */
 	<-exitChan
 	fmt.Println("[Server]: Shutting down server...")
 	ln.Close()

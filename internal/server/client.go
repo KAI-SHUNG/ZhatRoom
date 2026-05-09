@@ -7,10 +7,6 @@ import (
 	"net"
 )
 
-const (
-	MAX_ONLINE_CLIENTS = 100
-)
-
 type Client struct {
 	Hub      *Hub
 	Conn     net.Conn
