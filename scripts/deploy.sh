@@ -57,19 +57,28 @@ build_and_install() {
     echo "  Files installed"
 }
 
-# ── Clean stale socket & restart ───────────────────────────────────
-restart_service() {
+# ── Stop service ──────────────────────────────────────────────────
+stop_service() {
+    if systemctl is-active --quiet zhatroom 2>/dev/null; then
+        echo "[STOP] Stopping zhatroom service..."
+        systemctl stop zhatroom
+        echo "  Service stopped"
+    fi
+}
+
+# ── Clean stale socket & start service ────────────────────────────
+start_service() {
     # Remove stale socket left by a crashed server
     if [ -e "$SOCKET_PATH" ]; then
-        echo "[RESTART] Removing stale socket: $SOCKET_PATH"
+        echo "[START] Removing stale socket: $SOCKET_PATH"
         rm -f "$SOCKET_PATH"
     fi
 
-    echo "[RESTART] Restarting zhatroom service..."
-    systemctl restart zhatroom
+    echo "[START] Starting zhatroom service..."
+    systemctl start zhatroom
     sleep 1
     systemctl status zhatroom --no-pager -l 2>/dev/null || true
-    echo "  Service restarted"
+    echo "  Service started"
 }
 
 # ════════════════════════════════════════════════════════════════════
@@ -78,8 +87,9 @@ restart_service() {
 if [ "$UPDATE_ONLY" = true ]; then
     echo "=== ZhatRoom Update ==="
     echo ""
+    stop_service
     build_and_install
-    restart_service
+    start_service
     echo ""
     echo "=== Update Complete ==="
     exit 0
@@ -154,7 +164,7 @@ echo "  SSH reloaded"
 
 # ── 7. Start service ─────────────────────────────────────────────
 echo "[7/7] Starting service..."
-restart_service
+start_service
 
 echo ""
 echo "=== Deployment Complete ==="
