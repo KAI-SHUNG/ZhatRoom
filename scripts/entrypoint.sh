@@ -19,8 +19,8 @@ if [ -z "$USER_ID" ] || [ -z "$USERNAME" ]; then
 fi
 
 # Validate user exists in PostgreSQL (via Docker container)
-EXISTS=$(docker exec zhat_db psql -U postgres -d zhat_db -t -A \
-    -c "SELECT COUNT(*) FROM users WHERE id = '$USER_ID';" 2>/dev/null)
+QUERY="SELECT COUNT(*) FROM users WHERE id = '${USER_ID}';"
+EXISTS=$(docker exec zhat_db psql -U postgres -d zhat_db -t -A -c "$QUERY" 2>/dev/null)
 
 if [ "$EXISTS" != "1" ]; then
     echo "Access denied: user not registered."

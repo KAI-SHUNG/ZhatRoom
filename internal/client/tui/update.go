@@ -20,7 +20,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.Height = msg.Height - footerHeight
 		m.viewport.YPosition = headerHeight
 		m.input.Width = msg.Width - 4
-		if !m.welcomeSent {
+		if !m.welcomeSent && m.viewport.Height > 0 {
 			m.messages = append(m.messages, protocol.Message{
 				Type:    "system",
 				From:    "System",
@@ -80,7 +80,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case incomingMsg:
 		m.messages = append(m.messages, *msg.msg)
 		m.viewport.SetContent(renderMessages(m.messages, m.viewport.Width, m.id))
-		m.viewport.GotoBottom()
+		if m.viewport.Height > 0 {
+			m.viewport.GotoBottom()
+		}
 		cmds = append(cmds, waitForMessage(m.connector))
 
 	case errMsg:
