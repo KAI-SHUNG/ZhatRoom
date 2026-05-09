@@ -47,6 +47,12 @@ build_and_install() {
     cp scripts/entrypoint.sh "$INSTALL_DIR/entrypoint.sh"
     chmod +x "$INSTALL_DIR/entrypoint.sh"
 
+    # Install config if not exists
+    if [ ! -f "$INSTALL_DIR/config.yaml" ]; then
+        cp cmd/server/config.yaml "$INSTALL_DIR/config.yaml"
+        echo "  Config installed (edit $INSTALL_DIR/config.yaml to customize)"
+    fi
+
     # Create empty authorized_keys if not exists
     if [ ! -f "$INSTALL_DIR/authorized_keys" ]; then
         touch "$INSTALL_DIR/authorized_keys"

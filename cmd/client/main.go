@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	cfgPath := flag.String("config", "config.yaml", "config file path")
+	cfgPath := flag.String("config", "/opt/zhatroom/config.yaml", "config file path")
 	id := flag.String("id", "001", "ZhatRoom Id")
 	nickname := flag.String("usr", "", "ZhatRoom nickname")
 	socket := flag.String("socket", "", "Unix socket path")

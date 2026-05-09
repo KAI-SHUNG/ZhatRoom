@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	cfgPath := flag.String("config", "config.yaml", "config file path")
+	cfgPath := flag.String("config", "/opt/zhatroom/config.yaml", "config file path")
 	flag.Parse()
 
 	var cfg config.ServerConfig

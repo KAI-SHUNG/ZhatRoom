@@ -15,7 +15,7 @@ import (
 const authorizedKeysPath = "/opt/zhatroom/authorized_keys"
 
 func main() {
-	cfgPath := flag.String("config", "config.yaml", "config file path")
+	cfgPath := flag.String("config", "/opt/zhatroom/config.yaml", "config file path")
 	flag.Parse()
 
 	if flag.NArg() < 1 {
