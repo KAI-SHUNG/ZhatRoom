@@ -21,7 +21,7 @@ if [ -z "$USER_ID" ] || [ -z "$USERNAME" ]; then
 fi
 
 # Validate user via zhatroom server (no direct DB access)
-RESULT=$(echo "validate,${USER_ID}" | socat - UNIX-CONNECT:"${SOCKET_PATH}" 2>/dev/null)
+RESULT=$(echo "validate,${USER_ID}" | nc -U -N "${SOCKET_PATH}" 2>/dev/null)
 if [ "$RESULT" != "ok" ]; then
     echo "Access denied: user not registered."
     echo "Contact the server admin to get an account."
