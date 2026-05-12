@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"ZhatRoom/internal/protocol"
 
@@ -19,21 +20,40 @@ var (
 	otherStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("14"))
 )
 
+var timestampStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+
 func renderMessages(msgs []protocol.Message, width int, myID string) string {
 	var b strings.Builder
+	var prevTS int64
+
 	for _, msg := range msgs {
+		if msg.Type == "history_end" {
+			continue
+		}
+
+		// insert centered timestamp when gap > 5 minutes
+		if msg.CreatedAt > 0 && prevTS > 0 && msg.CreatedAt-prevTS > 300 {
+			ts := time.Unix(msg.CreatedAt, 0).Format("15:04")
+			label := "─── " + ts + " ───"
+			b.WriteString(timestampStyle.Width(width).Align(lipgloss.Center).Render(label) + "\n")
+		}
+		if msg.CreatedAt > 0 {
+			prevTS = msg.CreatedAt
+		}
+
 		var line string
-		if msg.Type == "system" {
+		switch {
+		case msg.Type == "system":
 			line = sysStyle.
 				Width(width).
 				Align(lipgloss.Center).
 				Render(fmt.Sprintf("[SYSTEM]: %s", msg.Content))
-		} else if msg.FromID == myID {
+		case msg.FromID == myID:
 			line = msgStyle.
 				Width(width).
 				Align(lipgloss.Right).
 				Render(fmt.Sprintf("[You]: %s", msg.Content))
-		} else {
+		default:
 			line = otherStyle.
 				Width(width).
 				Align(lipgloss.Left).

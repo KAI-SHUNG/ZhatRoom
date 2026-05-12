@@ -26,6 +26,16 @@ func (s *Storage) NewMessage(msg protocol.Message) error {
 	return s.DB.Create(&msg).Error
 }
 
+func (s *Storage) GetMessages(room string, limit int, before int64) ([]protocol.Message, error) {
+	var msgs []protocol.Message
+	q := s.DB.Where("room = ?", room).Order("created_at DESC").Limit(limit)
+	if before > 0 {
+		q = q.Where("created_at < ?", before)
+	}
+	err := q.Find(&msgs).Error
+	return msgs, err
+}
+
 func (s *Storage) UserExists(id string) (bool, error) {
 	var count int64
 	err := s.DB.Model(&protocol.User{}).Where("id = ?", id).Count(&count).Error

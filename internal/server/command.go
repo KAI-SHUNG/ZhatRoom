@@ -3,6 +3,7 @@ package server
 import (
 	"ZhatRoom/internal/protocol"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -42,6 +43,8 @@ func (r *CommandRegistry) registerBuiltin() {
 	r.Register("users", cmdUsers)
 	r.Register("nick", cmdNick)
 	r.Register("help", cmdHelp)
+	r.Register("join", cmdJoin)
+	r.Register("history", cmdHistory)
 }
 
 func systemMsg(content string) *protocol.Message {
@@ -87,6 +90,69 @@ func cmdHelp(ctx *CommandContext) *protocol.Message {
   /users         List online users
   /nick <name>   Change your nickname
   /help          Show this help
-  /history [n]   Load last n messages (TODO)
-  /join <room>   Switch room (TODO)`)
+  /history [ts] [n] Load history before timestamp
+  /join <room>   Switch room`)
+}
+
+func cmdJoin(ctx *CommandContext) *protocol.Message {
+	if len(ctx.Args) == 0 {
+		return systemMsg("Usage: /join <room>")
+	}
+	roomName := ctx.Args[0]
+
+	oldRoom := ctx.Client.room
+	if oldRoom != nil {
+		oldRoom.Leave(ctx.Client)
+	}
+
+	room := ctx.Hub.GetOrCreateRoom(roomName)
+	room.Join(ctx.Client)
+
+	go ctx.Hub.SendHistory(ctx.Client, roomName, 50)
+
+	return systemMsg(fmt.Sprintf("Joined #%s", roomName))
+}
+
+func cmdHistory(ctx *CommandContext) *protocol.Message {
+	var before int64
+	limit := 50
+
+	if len(ctx.Args) >= 1 {
+		if v, err := strconv.ParseInt(ctx.Args[0], 10, 64); err == nil {
+			before = v
+		}
+	}
+	if len(ctx.Args) >= 2 {
+		if v, err := strconv.Atoi(ctx.Args[1]); err == nil {
+			limit = v
+		}
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	roomName := "lobby"
+	if ctx.Client.room != nil {
+		roomName = ctx.Client.room.Name
+	}
+
+	go func() {
+		msgs, err := ctx.Store.GetMessages(roomName, limit, before)
+		if err != nil {
+			ctx.Client.Send(systemMsg("Failed to load history"))
+			return
+		}
+		if len(msgs) == 0 {
+			ctx.Client.Send(&protocol.Message{Type: "history_end"})
+			return
+		}
+		for i := len(msgs) - 1; i >= 0; i-- {
+			msgs[i].Type = "history"
+			if err := ctx.Client.Send(&msgs[i]); err != nil {
+				return
+			}
+		}
+	}()
+
+	return nil
 }

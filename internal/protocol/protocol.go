@@ -9,6 +9,7 @@ type Message struct {
 	Type      string `json:"type"`
 	From      string `json:"from"`
 	FromID    string `json:"from_id"`
+	Room      string `json:"room" gorm:"index"`
 	CreatedAt int64  `json:"ts" gorm:"autoCreateTime"`
 	Content   string `json:"content"`
 }

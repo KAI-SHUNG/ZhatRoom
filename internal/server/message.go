@@ -7,33 +7,28 @@ import (
 
 // processMessage handles ID generation, persistence, and routing.
 func (h *Hub) processMessage(msg *protocol.Message) {
-	msg.ID = h.snowflake.Generate().String()
+	h.mu.RLock()
+	client := h.clients[msg.FromID]
+	h.mu.RUnlock()
 
-	if err := h.store.NewMessage(*msg); err != nil {
-		fmt.Printf("[Hub]: failed to save message: %v\n", err)
+	if client == nil {
 		return
+	}
+
+	msg.ID = h.snowflake.Generate().String()
+	if client.room != nil {
+		msg.Room = client.room.Name
 	}
 
 	switch msg.Type {
 	case "chat":
-		h.mu.RLock()
-		client := h.clients[msg.FromID]
-		h.mu.RUnlock()
-
-		if client == nil {
+		if err := h.store.NewMessage(*msg); err != nil {
+			fmt.Printf("[Hub]: failed to save message: %v\n", err)
 			return
 		}
 		client.room.Broadcast(msg)
 
 	case "command":
-		h.mu.RLock()
-		client := h.clients[msg.FromID]
-		h.mu.RUnlock()
-
-		if client == nil {
-			return
-		}
-
 		name, args := parseCommand(msg.Content)
 		ctx := &CommandContext{
 			Hub:    h,

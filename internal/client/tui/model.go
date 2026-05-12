@@ -9,15 +9,20 @@ import (
 )
 
 type Model struct {
-	connector   *Connector
-	messages    []protocol.Message
-	viewport    viewport.Model
-	input       textinput.Model
-	nickname    string
-	id          string
-	ready       bool
-	err         error
-	welcomeSent bool
+	connector      *Connector
+	messages       []protocol.Message
+	pendingHistory []protocol.Message
+	viewport       viewport.Model
+	input          textinput.Model
+	nickname       string
+	id             string
+	currentRoom    string
+	ready          bool
+	err            error
+	welcomeSent    bool
+	historyLoading bool
+	historyEnd     bool
+	oldestTS       int64
 }
 
 func NewModel(id, nickname string, connector *Connector) *Model {
@@ -28,12 +33,13 @@ func NewModel(id, nickname string, connector *Connector) *Model {
 	ti.Width = 40
 
 	return &Model{
-		connector: connector,
-		messages:  []protocol.Message{},
-		viewport:  viewport.New(0, 0),
-		input:     ti,
-		nickname:  nickname,
-		id:        id,
+		connector:   connector,
+		messages:    []protocol.Message{},
+		viewport:    viewport.New(0, 0),
+		input:       ti,
+		nickname:    nickname,
+		id:          id,
+		currentRoom: "lobby",
 	}
 }
 

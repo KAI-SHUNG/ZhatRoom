@@ -65,6 +65,7 @@ func (h *Hub) Run() {
 			lobby.Join(client)
 
 			fmt.Printf("[Hub]: client %s registered\n", client.ID)
+			go h.SendHistory(client, "lobby", 50)
 
 		case client, ok := <-h.unregister:
 			if !ok || client == nil {
@@ -97,6 +98,29 @@ func (h *Hub) Validate(uid string) bool {
 		return false
 	}
 	return exist
+}
+
+func (h *Hub) GetOrCreateRoom(name string) *Room {
+	if r, ok := h.rooms[name]; ok {
+		return r
+	}
+	r := NewRoom(name)
+	h.rooms[name] = r
+	return r
+}
+
+func (h *Hub) SendHistory(c *Client, room string, limit int) {
+	msgs, err := h.store.GetMessages(room, limit, 0)
+	if err != nil {
+		c.Send(systemMsg("Failed to load history"))
+		return
+	}
+	for i := len(msgs) - 1; i >= 0; i-- {
+		msgs[i].Type = "history"
+		if err := c.Send(&msgs[i]); err != nil {
+			return
+		}
+	}
 }
 
 func (h *Hub) HandleNewConn(conn net.Conn, id string, nickname string) {

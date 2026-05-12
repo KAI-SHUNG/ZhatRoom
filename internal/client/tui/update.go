@@ -66,6 +66,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case tea.KeyPgUp:
 			m.viewport.HalfPageUp()
+			m.tryLoadHistory()
 			return m, nil
 
 		case tea.KeyPgDown:
@@ -78,16 +79,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 
 	case incomingMsg:
-		m.messages = append(m.messages, *msg.msg)
-		m.viewport.SetContent(renderMessages(m.messages, m.viewport.Width, m.id))
-		if m.viewport.Height > 0 {
-			m.viewport.GotoBottom()
-		}
+		m.handleIncoming(msg.msg)
 		cmds = append(cmds, waitForMessage(m.connector))
 
 	case tea.MouseMsg:
 		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.Update(msg)
+		if msg.Button == tea.MouseButtonWheelUp {
+			m.tryLoadHistory()
+		}
 		cmds = append(cmds, cmd)
 
 	case errMsg:
@@ -96,4 +96,61 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m *Model) handleIncoming(msg *protocol.Message) {
+	switch msg.Type {
+	case "history":
+		m.pendingHistory = append(m.pendingHistory, *msg)
+		return
+
+	case "history_end":
+		m.flushHistory()
+		m.historyLoading = false
+		if len(m.pendingHistory) == 0 && !m.historyEnd {
+			m.historyEnd = true
+		}
+		return
+
+	default:
+		// flush any pending history before appending new message
+		if len(m.pendingHistory) > 0 {
+			m.flushHistory()
+		}
+		m.messages = append(m.messages, *msg)
+		if msg.CreatedAt > 0 && (msg.CreatedAt < m.oldestTS || m.oldestTS == 0) {
+			m.oldestTS = msg.CreatedAt
+		}
+		m.viewport.SetContent(renderMessages(m.messages, m.viewport.Width, m.id))
+		m.viewport.GotoBottom()
+	}
+}
+
+func (m *Model) flushHistory() {
+	if len(m.pendingHistory) == 0 {
+		return
+	}
+	m.messages = append(m.pendingHistory, m.messages...)
+	for _, h := range m.pendingHistory {
+		if h.CreatedAt > 0 && (h.CreatedAt < m.oldestTS || m.oldestTS == 0) {
+			m.oldestTS = h.CreatedAt
+		}
+	}
+	m.pendingHistory = nil
+	m.viewport.SetContent(renderMessages(m.messages, m.viewport.Width, m.id))
+}
+
+func (m *Model) tryLoadHistory() {
+	if m.historyLoading || m.historyEnd {
+		return
+	}
+	if !m.viewport.AtTop() {
+		return
+	}
+	m.historyLoading = true
+	m.connector.Send(&protocol.Message{
+		Type:    "command",
+		FromID:  m.id,
+		Content: fmt.Sprintf("/history %d 50", m.oldestTS),
+	})
 }
