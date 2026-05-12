@@ -121,6 +121,7 @@ func (h *Hub) SendHistory(c *Client, room string, limit int) {
 			return
 		}
 	}
+	c.Send(&protocol.Message{Type: "history_end"})
 }
 
 func (h *Hub) HandleNewConn(conn net.Conn, id string, nickname string) {
