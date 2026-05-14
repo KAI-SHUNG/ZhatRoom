@@ -3,6 +3,7 @@ package server
 import (
 	"ZhatRoom/internal/protocol"
 	"fmt"
+	"time"
 )
 
 // processMessage handles ID generation, persistence, and routing.
@@ -16,6 +17,7 @@ func (h *Hub) processMessage(msg *protocol.Message) {
 	}
 
 	msg.ID = h.snowflake.Generate().String()
+	msg.CreatedAt = time.Now().Unix()
 	if client.room != nil {
 		msg.Room = client.room.Name
 	}

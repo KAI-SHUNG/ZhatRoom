@@ -20,9 +20,10 @@ type Model struct {
 	ready          bool
 	err            error
 	welcomeSent    bool
-	historyLoading bool
-	historyEnd     bool
-	oldestTS       int64
+	historyLoading  bool
+	historyEnd      bool
+	historyReceived bool
+	oldestTS        int64
 }
 
 func NewModel(id, nickname string, connector *Connector) *Model {

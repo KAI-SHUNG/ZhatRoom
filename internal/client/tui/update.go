@@ -130,6 +130,7 @@ func (m *Model) flushHistory() {
 	if len(m.pendingHistory) == 0 {
 		return
 	}
+	firstLoad := !m.historyReceived
 	m.messages = append(m.pendingHistory, m.messages...)
 	for _, h := range m.pendingHistory {
 		if h.CreatedAt > 0 && (h.CreatedAt < m.oldestTS || m.oldestTS == 0) {
@@ -137,7 +138,11 @@ func (m *Model) flushHistory() {
 		}
 	}
 	m.pendingHistory = nil
+	m.historyReceived = true
 	m.viewport.SetContent(renderMessages(m.messages, m.viewport.Width, m.id))
+	if firstLoad {
+		m.viewport.GotoBottom()
+	}
 }
 
 func (m *Model) tryLoadHistory() {
