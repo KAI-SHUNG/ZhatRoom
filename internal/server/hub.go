@@ -80,6 +80,7 @@ func (h *Hub) Run() {
 			h.mu.Unlock()
 
 			if client.room != nil {
+				client.room.Broadcast(systemMsg(fmt.Sprintf("%s 离开了聊天室", client.Nickname)))
 				client.room.Leave(client)
 			}
 			fmt.Printf("[Hub]: client %s unregistered\n", client.ID)
