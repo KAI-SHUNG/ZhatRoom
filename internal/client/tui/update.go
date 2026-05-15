@@ -45,6 +45,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					idx = 0
 				}
 				m.input.SetValue("/" + hints[idx].name)
+				m.input.CursorEnd()
 				m.cmdIdx = -1
 				return m, nil
 			}
@@ -70,6 +71,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case tea.KeyEnter:
+			// if a command is highlighted, fill it instead of sending
+			if len(hints) > 0 && m.cmdIdx >= 0 && m.cmdIdx < len(hints) {
+				m.input.SetValue("/" + hints[m.cmdIdx].name)
+				m.input.CursorEnd()
+				m.cmdIdx = -1
+				return m, nil
+			}
+
 			text := m.input.Value()
 			m.input.SetValue("")
 			m.cmdIdx = -1
