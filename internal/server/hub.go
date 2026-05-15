@@ -67,6 +67,8 @@ func (h *Hub) Run() {
 			fmt.Printf("[Hub]: client %s registered\n", client.ID)
 			go h.SendHistory(client, "lobby", 50)
 
+			lobby.Broadcast(systemMsg(fmt.Sprintf("%s 加入了聊天室", client.Nickname)))
+
 		case client, ok := <-h.unregister:
 			if !ok || client == nil {
 				return
