@@ -23,10 +23,10 @@ var (
 var timestampStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
 
 var (
-	cmdNameStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Bold(true)
-	cmdDescStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+	cmdNameStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+	cmdDescStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	cmdHintStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	cmdSelectStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("237")).Bold(true)
+	cmdSelectStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Background(lipgloss.Color("237")).Bold(true)
 )
 
 func renderMessages(msgs []protocol.Message, width int, myID string) string {
