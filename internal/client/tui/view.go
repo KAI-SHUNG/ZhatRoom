@@ -23,9 +23,10 @@ var (
 var timestampStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
 
 var (
-	cmdNameStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Bold(true)
-	cmdDescStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
-	cmdHintStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	cmdNameStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Bold(true)
+	cmdDescStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+	cmdHintStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	cmdSelectStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("237")).Bold(true)
 )
 
 func renderMessages(msgs []protocol.Message, width int, myID string) string {
@@ -112,10 +113,17 @@ func (m *Model) View() string {
 
 	if len(hints) > 0 {
 		view += "\n"
-		for _, h := range hints {
-			name := cmdNameStyle.Render("/" + h.name)
-			desc := cmdDescStyle.Render(h.desc)
-			view += cmdHintStyle.Render("  ") + name + "  " + desc + "\n"
+		for i, h := range hints {
+			selected := i == m.cmdIdx
+			if selected {
+				name := cmdSelectStyle.Render("/" + h.name)
+				desc := cmdSelectStyle.Render(" " + h.desc)
+				view += "▸ " + name + desc + "\n"
+			} else {
+				name := cmdNameStyle.Render("/" + h.name)
+				desc := cmdDescStyle.Render(h.desc)
+				view += cmdHintStyle.Render("  ") + name + "  " + desc + "\n"
+			}
 		}
 		view = strings.TrimRight(view, "\n")
 	}

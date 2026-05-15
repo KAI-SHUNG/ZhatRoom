@@ -40,6 +40,7 @@ type Model struct {
 	oldestTS        int64
 	winWidth        int
 	winHeight       int
+	cmdIdx          int // selected index in command hints, -1 = none
 }
 
 func NewModel(id, nickname string, connector *Connector) *Model {

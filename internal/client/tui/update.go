@@ -32,13 +32,49 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.KeyMsg:
+		hints := m.matchingCommands()
+
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 
+		case tea.KeyTab:
+			if len(hints) > 0 {
+				idx := m.cmdIdx
+				if idx < 0 || idx >= len(hints) {
+					idx = 0
+				}
+				m.input.SetValue("/" + hints[idx].name)
+				m.cmdIdx = -1
+				return m, nil
+			}
+
+		case tea.KeyUp:
+			if len(hints) > 0 {
+				if m.cmdIdx <= 0 {
+					m.cmdIdx = len(hints) - 1
+				} else {
+					m.cmdIdx--
+				}
+				m.input.SetValue("/" + hints[m.cmdIdx].name)
+				return m, nil
+			}
+
+		case tea.KeyDown:
+			if len(hints) > 0 {
+				if m.cmdIdx >= len(hints)-1 {
+					m.cmdIdx = 0
+				} else {
+					m.cmdIdx++
+				}
+				m.input.SetValue("/" + hints[m.cmdIdx].name)
+				return m, nil
+			}
+
 		case tea.KeyEnter:
 			text := m.input.Value()
 			m.input.SetValue("")
+			m.cmdIdx = -1
 			if m.winHeight > 0 {
 				m.viewport.Height = m.winHeight - m.footerHeight()
 			}
@@ -80,6 +116,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
 		cmds = append(cmds, cmd)
+		// reset cmdIdx when user types (filtering changes the match list)
+		m.cmdIdx = 0
 		if m.winHeight > 0 {
 			m.viewport.Height = m.winHeight - m.footerHeight()
 		}
