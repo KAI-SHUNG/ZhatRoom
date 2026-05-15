@@ -41,6 +41,11 @@ func renderMessages(msgs []protocol.Message, width int, myID string) string {
 			prevTS = msg.CreatedAt
 		}
 
+		// blank line before non-system messages (except at the start)
+		if msg.Type != "system" && b.Len() > 0 {
+			b.WriteString("\n")
+		}
+
 		var line string
 		switch {
 		case msg.Type == "system":
