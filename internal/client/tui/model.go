@@ -8,6 +8,20 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type cmdEntry struct {
+	name string
+	desc string
+}
+
+var builtinCommands = []cmdEntry{
+	{"exit", "退出聊天室"},
+	{"users", "查看在线用户"},
+	{"nick", "修改昵称"},
+	{"help", "显示帮助"},
+	{"join", "切换房间"},
+	{"history", "加载历史消息"},
+}
+
 type Model struct {
 	connector      *Connector
 	messages       []protocol.Message
@@ -24,6 +38,8 @@ type Model struct {
 	historyEnd      bool
 	historyReceived bool
 	oldestTS        int64
+	winWidth        int
+	winHeight       int
 }
 
 func NewModel(id, nickname string, connector *Connector) *Model {

@@ -14,11 +14,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.ready = true
-		headerHeight := 0
-		footerHeight := 3
+		m.winWidth = msg.Width
+		m.winHeight = msg.Height
 		m.viewport.Width = msg.Width
-		m.viewport.Height = msg.Height - footerHeight
-		m.viewport.YPosition = headerHeight
+		m.viewport.Height = msg.Height - m.footerHeight()
+		m.viewport.YPosition = 0
 		m.input.Width = msg.Width - 4
 		if !m.welcomeSent && m.viewport.Height > 0 {
 			m.messages = append(m.messages, protocol.Message{
@@ -39,6 +39,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyEnter:
 			text := m.input.Value()
 			m.input.SetValue("")
+			if m.winHeight > 0 {
+				m.viewport.Height = m.winHeight - m.footerHeight()
+			}
 
 			if text == "" {
 				return m, nil
@@ -77,6 +80,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
 		cmds = append(cmds, cmd)
+		if m.winHeight > 0 {
+			m.viewport.Height = m.winHeight - m.footerHeight()
+		}
 
 	case incomingMsg:
 		m.handleIncoming(msg.msg)

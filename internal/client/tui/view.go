@@ -22,6 +22,12 @@ var (
 
 var timestampStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
 
+var (
+	cmdNameStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Bold(true)
+	cmdDescStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+	cmdHintStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+)
+
 func renderMessages(msgs []protocol.Message, width int, myID string) string {
 	var b strings.Builder
 	var prevTS int64
@@ -69,6 +75,26 @@ func renderMessages(msgs []protocol.Message, width int, myID string) string {
 	return b.String()
 }
 
+func (m *Model) matchingCommands() []cmdEntry {
+	val := m.input.Value()
+	if len(val) == 0 || val[0] != '/' {
+		return nil
+	}
+	prefix := strings.ToLower(val[1:])
+	var matches []cmdEntry
+	for _, c := range builtinCommands {
+		if strings.HasPrefix(c.name, prefix) {
+			matches = append(matches, c)
+		}
+	}
+	return matches
+}
+
+func (m *Model) footerHeight() int {
+	hints := m.matchingCommands()
+	return 3 + len(hints) // divider + input + hint lines
+}
+
 func (m *Model) View() string {
 	if !m.ready {
 		return "\n  Connecting to ZhatRoom..."
@@ -78,8 +104,21 @@ func (m *Model) View() string {
 		return fmt.Sprintf("\n  Disconnected: %v\n", m.err)
 	}
 
+	hints := m.matchingCommands()
+
 	view := m.viewport.View()
 	view += "\n" + dividerStyle.String() + "\n"
 	view += m.input.View()
+
+	if len(hints) > 0 {
+		view += "\n"
+		for _, h := range hints {
+			name := cmdNameStyle.Render("/" + h.name)
+			desc := cmdDescStyle.Render(h.desc)
+			view += cmdHintStyle.Render("  ") + name + "  " + desc + "\n"
+		}
+		view = strings.TrimRight(view, "\n")
+	}
+
 	return view
 }
