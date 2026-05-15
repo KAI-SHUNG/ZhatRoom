@@ -56,7 +56,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					m.cmdIdx--
 				}
-				m.input.SetValue("/" + hints[m.cmdIdx].name)
 				return m, nil
 			}
 
@@ -67,7 +66,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					m.cmdIdx++
 				}
-				m.input.SetValue("/" + hints[m.cmdIdx].name)
 				return m, nil
 			}
 
