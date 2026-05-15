@@ -23,9 +23,9 @@ var (
 var timestampStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
 
 var (
-	cmdNameStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
-	cmdDescStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	cmdHintStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	cmdNameStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	cmdDescStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("249"))
+	cmdHintStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("249"))
 	cmdSelectStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Background(lipgloss.Color("237")).Bold(true)
 )
 
