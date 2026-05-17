@@ -138,11 +138,13 @@ func (m *Model) renderStatusBar() string {
 	}
 	left := fmt.Sprintf(" #%s  %d online", m.currentRoomName, online)
 
-	gap := m.winWidth - lipgloss.Width(left)
+	chatWidth := m.winWidth - sidebarWidth
+	gap := chatWidth - lipgloss.Width(left)
 	if gap < 0 {
 		gap = 0
 	}
-	return statusBarStyle.Width(m.winWidth).Render(left + strings.Repeat(" ", gap))
+	sbPad := sidebarStyle.Width(sidebarWidth).Render("")
+	return sbPad + statusBarStyle.Width(chatWidth).Render(left+strings.Repeat(" ", gap))
 }
 
 func (m *Model) renderSidebar() string {
@@ -193,8 +195,7 @@ func (m *Model) renderFooter() string {
 
 	// Sidebar prefix for each line
 	sbPad := sidebarStyle.Width(sidebarWidth).Render("")
-	sep := lipgloss.NewStyle().Background(lipgloss.Color("234")).Foreground(lipgloss.Color("240")).Render("│")
-	prefix := sbPad + sep
+	prefix := sbPad
 
 	// Compose: divider + input (top-aligned) + hints + mode
 	footer := prefix + divider + "\n" +
