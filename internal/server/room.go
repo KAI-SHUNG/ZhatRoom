@@ -6,14 +6,18 @@ import (
 	"sync"
 )
 
+const LobbyID uint = 0
+
 type Room struct {
+	ID      uint
 	Name    string
 	clients map[string]*Client
 	mu      sync.RWMutex
 }
 
-func NewRoom(name string) *Room {
+func NewRoom(id uint, name string) *Room {
 	return &Room{
+		ID:      id,
 		Name:    name,
 		clients: make(map[string]*Client),
 	}

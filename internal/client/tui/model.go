@@ -18,29 +18,50 @@ var builtinCommands = []cmdEntry{
 	{"users", "查看在线用户"},
 	{"nick", "修改昵称"},
 	{"help", "显示帮助"},
-	{"join", "切换房间"},
+	{"room", "create/join/delete/list 房间"},
 	{"history", "加载历史消息"},
 }
 
-type Model struct {
-	connector      *Connector
+type Mode int
+
+const (
+	InputMode  Mode = iota // typing messages
+	NormalMode             // vim-style navigation
+	SidebarMode            // browsing room list
+)
+
+type RoomState struct {
 	messages       []protocol.Message
 	pendingHistory []protocol.Message
-	viewport       viewport.Model
-	input          textinput.Model
-	nickname       string
-	id             string
-	currentRoom    string
-	ready          bool
-	err            error
-	welcomeSent    bool
+	viewportPos    int
 	historyLoading  bool
 	historyEnd      bool
 	historyReceived bool
 	oldestTS        int64
-	winWidth        int
-	winHeight       int
-	cmdIdx          int // selected index in command hints, -1 = none
+}
+
+type Model struct {
+	connector *Connector
+	viewport  viewport.Model
+	input     textinput.Model
+	nickname  string
+	id        string
+	ready     bool
+	err       error
+	winWidth  int
+	winHeight int
+	cmdIdx    int
+	welcomeSent bool
+
+	// Mode system
+	mode Mode
+
+	// Room management
+	roomStates     map[uint]*RoomState
+	currentRoomID  uint
+	currentRoomName string
+	roomList       []protocol.RoomSummary
+	sidebarCursor  int
 }
 
 func NewModel(id, nickname string, connector *Connector) *Model {
@@ -51,13 +72,16 @@ func NewModel(id, nickname string, connector *Connector) *Model {
 	ti.Width = 40
 
 	return &Model{
-		connector:   connector,
-		messages:    []protocol.Message{},
-		viewport:    viewport.New(0, 0),
-		input:       ti,
-		nickname:    nickname,
-		id:          id,
-		currentRoom: "lobby",
+		connector:      connector,
+		viewport:       viewport.New(0, 0),
+		input:          ti,
+		nickname:       nickname,
+		id:             id,
+		mode:           InputMode,
+		roomStates:     map[uint]*RoomState{0: {}},
+		currentRoomID:  0,
+		currentRoomName: "lobby",
+		roomList:       []protocol.RoomSummary{{ID: 0, Name: "lobby"}},
 	}
 }
 
@@ -66,4 +90,48 @@ func (m *Model) Init() tea.Cmd {
 		textinput.Blink,
 		waitForMessage(m.connector),
 	)
+}
+
+func (m *Model) currentRoom() *RoomState {
+	return m.roomStates[m.currentRoomID]
+}
+
+func (m *Model) switchRoom(roomID uint) {
+	// Save current viewport position
+	if state, ok := m.roomStates[m.currentRoomID]; ok {
+		state.viewportPos = m.viewport.YOffset
+	}
+
+	m.currentRoomID = roomID
+
+	// Update room name from roomList
+	for _, r := range m.roomList {
+		if r.ID == roomID {
+			m.currentRoomName = r.Name
+			break
+		}
+	}
+
+	// Restore or initialize state
+	state, ok := m.roomStates[roomID]
+	if !ok {
+		state = &RoomState{}
+		m.roomStates[roomID] = state
+	}
+
+	m.viewport.SetContent(renderMessages(state.messages, m.viewport.Width, m.id))
+	m.viewport.YOffset = state.viewportPos
+}
+
+func (m *Model) modeString() string {
+	switch m.mode {
+	case InputMode:
+		return "input"
+	case NormalMode:
+		return "normal"
+	case SidebarMode:
+		return "sidebar"
+	default:
+		return "?"
+	}
 }

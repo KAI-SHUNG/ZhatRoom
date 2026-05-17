@@ -2,6 +2,7 @@ package server
 
 import (
 	"ZhatRoom/internal/protocol"
+	"fmt"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -17,23 +18,64 @@ func InitDB(dsn string) *Storage {
 		panic("failed to connect to database: " + err.Error())
 	}
 
-	db.AutoMigrate(&protocol.User{}, &protocol.Message{})
+	db.AutoMigrate(&protocol.User{}, &protocol.Message{}, &protocol.RoomModel{})
 
-	return &Storage{DB: db}
+	s := &Storage{DB: db}
+	s.EnsureLobby()
+	return s
 }
 
 func (s *Storage) NewMessage(msg protocol.Message) error {
 	return s.DB.Create(&msg).Error
 }
 
-func (s *Storage) GetMessages(room string, limit int, before int64) ([]protocol.Message, error) {
+func (s *Storage) GetMessages(roomID uint, limit int, before int64) ([]protocol.Message, error) {
 	var msgs []protocol.Message
-	q := s.DB.Where("room = ?", room).Order("created_at DESC").Limit(limit)
+	q := s.DB.Where("room_id = ?", roomID).Order("created_at DESC").Limit(limit)
 	if before > 0 {
 		q = q.Where("created_at < ?", before)
 	}
 	err := q.Find(&msgs).Error
 	return msgs, err
+}
+
+func (s *Storage) EnsureLobby() {
+	s.DB.Exec(`INSERT INTO room_models (id, name, owner_id, created_at) VALUES (0, 'lobby', '', 0) ON CONFLICT DO NOTHING`)
+	s.DB.Exec(`ALTER SEQUENCE room_models_id_seq RESTART WITH 1`)
+}
+
+func (s *Storage) CreateRoom(name string, ownerID string) (*protocol.RoomModel, error) {
+	room := &protocol.RoomModel{Name: name, OwnerID: ownerID}
+	if err := s.DB.Create(room).Error; err != nil {
+		return nil, fmt.Errorf("room name already exists or DB error: %w", err)
+	}
+	return room, nil
+}
+
+func (s *Storage) GetRoomByName(name string) (*protocol.RoomModel, error) {
+	var room protocol.RoomModel
+	if err := s.DB.Where("name = ?", name).First(&room).Error; err != nil {
+		return nil, err
+	}
+	return &room, nil
+}
+
+func (s *Storage) GetRoomByID(id uint) (*protocol.RoomModel, error) {
+	var room protocol.RoomModel
+	if err := s.DB.Where("id = ?", id).First(&room).Error; err != nil {
+		return nil, err
+	}
+	return &room, nil
+}
+
+func (s *Storage) ListRooms() ([]protocol.RoomModel, error) {
+	var rooms []protocol.RoomModel
+	err := s.DB.Order("id ASC").Find(&rooms).Error
+	return rooms, err
+}
+
+func (s *Storage) DeleteRoom(id uint) error {
+	return s.DB.Where("id = ?", id).Delete(&protocol.RoomModel{}).Error
 }
 
 func (s *Storage) UserExists(id string) (bool, error) {

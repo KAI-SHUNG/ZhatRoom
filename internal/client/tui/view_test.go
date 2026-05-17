@@ -21,10 +21,17 @@ func TestRenderMessagesAlignment(t *testing.T) {
 	}
 
 	output := renderMessages(msgs, width, myID)
-	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
+	allLines := strings.Split(strings.TrimRight(output, "\n"), "\n")
+	// Filter out blank lines (added between non-system messages)
+	var lines []string
+	for _, l := range allLines {
+		if strings.TrimSpace(l) != "" {
+			lines = append(lines, l)
+		}
+	}
 
 	if len(lines) != len(msgs) {
-		t.Fatalf("expected %d lines, got %d", len(msgs), len(lines))
+		t.Fatalf("expected %d non-empty lines, got %d", len(msgs), len(lines))
 	}
 
 	for i, line := range lines {
@@ -99,6 +106,9 @@ func TestRenderMessagesAllOwn(t *testing.T) {
 	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
 
 	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue // skip blank separator lines
+		}
 		plain := stripANSI(line)
 		if !strings.Contains(plain, "[You]:") {
 			t.Errorf("all messages should use [You]:, got: %s", plain)

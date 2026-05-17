@@ -3,6 +3,7 @@ package server
 import (
 	"ZhatRoom/internal/config"
 	"ZhatRoom/internal/protocol"
+	"encoding/json"
 	"fmt"
 	"net"
 	"sync"
@@ -19,7 +20,7 @@ type Hub struct {
 	store      *Storage
 	snowflake  *snowflake.Node
 	commands   *CommandRegistry
-	rooms      map[string]*Room
+	rooms      map[uint]*Room
 	maxClients int
 
 	mu sync.RWMutex
@@ -31,8 +32,8 @@ func NewHub(cfg config.ServerConfig) *Hub {
 		panic("failed to create snowflake node: " + err.Error())
 	}
 
-	lobby := NewRoom("lobby")
-	rooms := map[string]*Room{"lobby": lobby}
+	lobby := NewRoom(LobbyID, "lobby")
+	rooms := map[uint]*Room{LobbyID: lobby}
 
 	return &Hub{
 		clients:    make(map[string]*Client, cfg.MaxClients),
@@ -61,11 +62,12 @@ func (h *Hub) Run() {
 			h.clients[client.ID] = client
 			h.mu.Unlock()
 
-			lobby := h.rooms["lobby"]
+			lobby := h.rooms[LobbyID]
 			lobby.Join(client)
 
 			fmt.Printf("[Hub]: client %s registered\n", client.ID)
-			go h.SendHistory(client, "lobby", 50)
+			go h.SendHistory(client, LobbyID, 50)
+			go h.SendRoomList(client)
 
 			lobby.Broadcast(systemMsg(fmt.Sprintf("%s 加入了聊天室", client.Nickname)))
 
@@ -103,17 +105,52 @@ func (h *Hub) Validate(uid string) bool {
 	return exist
 }
 
-func (h *Hub) GetOrCreateRoom(name string) *Room {
-	if r, ok := h.rooms[name]; ok {
-		return r
-	}
-	r := NewRoom(name)
-	h.rooms[name] = r
-	return r
+func (h *Hub) GetRoom(id uint) *Room {
+	return h.rooms[id]
 }
 
-func (h *Hub) SendHistory(c *Client, room string, limit int) {
-	msgs, err := h.store.GetMessages(room, limit, 0)
+func (h *Hub) CreateRoom(name string, ownerID string) (*Room, error) {
+	rm, err := h.store.CreateRoom(name, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	room := NewRoom(rm.ID, rm.Name)
+	h.rooms[rm.ID] = room
+	return room, nil
+}
+
+func (h *Hub) JoinRoom(c *Client, roomID uint) (*Room, error) {
+	room, ok := h.rooms[roomID]
+	if !ok {
+		// Try loading from DB
+		rm, err := h.store.GetRoomByID(roomID)
+		if err != nil {
+			return nil, fmt.Errorf("room not found: %d", roomID)
+		}
+		room = NewRoom(rm.ID, rm.Name)
+		h.rooms[rm.ID] = room
+	}
+
+	if c.room != nil {
+		c.room.Broadcast(systemMsg(fmt.Sprintf("%s 离开了聊天室", c.Nickname)))
+		c.room.Leave(c)
+	}
+
+	room.Join(c)
+	room.Broadcast(systemMsg(fmt.Sprintf("%s 加入了聊天室", c.Nickname)))
+	return room, nil
+}
+
+func (h *Hub) KickToLobby(c *Client) {
+	if c.room != nil {
+		c.room.Leave(c)
+	}
+	lobby := h.rooms[LobbyID]
+	lobby.Join(c)
+}
+
+func (h *Hub) SendHistory(c *Client, roomID uint, limit int) {
+	msgs, err := h.store.GetMessages(roomID, limit, 0)
 	if err != nil {
 		c.Send(systemMsg("Failed to load history"))
 		return
@@ -125,6 +162,44 @@ func (h *Hub) SendHistory(c *Client, room string, limit int) {
 		}
 	}
 	c.Send(&protocol.Message{Type: "history_end"})
+}
+
+func (h *Hub) buildRoomList() []protocol.RoomSummary {
+	rooms, err := h.store.ListRooms()
+	if err != nil {
+		fmt.Printf("[Hub]: failed to list rooms: %v\n", err)
+		return nil
+	}
+	var summaries []protocol.RoomSummary
+	for _, r := range rooms {
+		count := 0
+		if rm, ok := h.rooms[r.ID]; ok {
+			count = rm.Count()
+		}
+		summaries = append(summaries, protocol.RoomSummary{
+			ID:      r.ID,
+			Name:    r.Name,
+			Members: count,
+		})
+	}
+	return summaries
+}
+
+func (h *Hub) SendRoomList(c *Client) {
+	summaries := h.buildRoomList()
+	data, _ := json.Marshal(summaries)
+	c.Send(&protocol.Message{Type: "room_list", Data: data})
+}
+
+func (h *Hub) BroadcastRoomList() {
+	summaries := h.buildRoomList()
+	data, _ := json.Marshal(summaries)
+	msg := &protocol.Message{Type: "room_list", Data: data}
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for _, c := range h.clients {
+		c.Send(msg)
+	}
 }
 
 func (h *Hub) HandleNewConn(conn net.Conn, id string, nickname string) {

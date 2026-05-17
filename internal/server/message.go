@@ -20,6 +20,7 @@ func (h *Hub) processMessage(msg *protocol.Message) {
 	msg.CreatedAt = time.Now().Unix()
 	if client.room != nil {
 		msg.Room = client.room.Name
+		msg.RoomID = client.room.ID
 	}
 
 	switch msg.Type {
