@@ -124,8 +124,8 @@ func (m *Model) matchingCommands() []cmdEntry {
 
 func (m *Model) footerHeight() int {
 	hints := m.matchingCommands()
-	// divider(1) + padding(2) + input(1) + mode indicator(1) + hints
-	return 4 + len(hints)
+	// divider(1) + input(1) + hints + mode indicator(1)
+	return 3 + len(hints)
 }
 
 func (m *Model) renderStatusBar() string {
@@ -189,27 +189,33 @@ func (m *Model) renderFooter() string {
 		Foreground(lipgloss.Color("240")).
 		Render(strings.Repeat("─", max(chatWidth, 1)))
 
-	// Padding lines
-	emptyLine := chatBgStyle.Width(chatWidth).Render("")
-
 	// Input line
 	inputLine := m.input.View()
 
-	// Hint lines
+	// Sidebar prefix for each line
+	sbPad := sidebarStyle.Width(sidebarWidth).Render("")
+	sep := lipgloss.NewStyle().Background(lipgloss.Color("234")).Foreground(lipgloss.Color("240")).Render("│")
+	prefix := sbPad + sep
+
+	// Compose: divider + input (top-aligned) + hints + mode
+	footer := prefix + divider + "\n" +
+		prefix + " " + inputLine
+
+	// Hint lines (each prefixed with sidebar + separator)
 	hints := m.matchingCommands()
-	hintLines := ""
 	if len(hints) > 0 {
 		for i, h := range hints {
-			selected := i == m.cmdIdx
-			if selected {
+			var line string
+			if i == m.cmdIdx {
 				name := cmdSelectStyle.Render("/" + h.name)
 				desc := cmdSelectStyle.Render(" " + h.desc)
-				hintLines += "\n" + "▸ " + name + desc
+				line = "▸ " + name + desc
 			} else {
 				name := cmdNameStyle.Render("/" + h.name)
 				desc := cmdDescStyle.Render(h.desc)
-				hintLines += "\n" + cmdHintStyle.Render("  ") + name + "  " + desc
+				line = cmdHintStyle.Render("  ") + name + "  " + desc
 			}
+			footer += "\n" + prefix + line
 		}
 	}
 
@@ -220,18 +226,7 @@ func (m *Model) renderFooter() string {
 	} else {
 		modeText = modeEscStyle.Width(chatWidth).Render("-- ESC --")
 	}
-
-	// Sidebar padding for each line
-	sbPad := sidebarStyle.Width(sidebarWidth).Render("")
-	sep := lipgloss.NewStyle().Background(lipgloss.Color("234")).Foreground(lipgloss.Color("240")).Render("│")
-
-	// Compose all footer lines with sidebar + separator prefix
-	chatPrefix := sbPad + sep
-	footer := chatPrefix + divider + "\n" +
-		chatPrefix + emptyLine + "\n" +
-		chatPrefix + emptyLine + "\n" +
-		chatPrefix + " " + inputLine + hintLines + "\n" +
-		chatPrefix + modeText
+	footer += "\n" + prefix + modeText
 
 	return footer
 }
