@@ -261,6 +261,12 @@ func (m *Model) switchToSidebarRoom() {
 	if selected.ID == m.currentRoomID {
 		return
 	}
+	// If we already have state for this room, just switch locally (no server roundtrip)
+	if state, ok := m.roomStates[selected.ID]; ok && len(state.messages) > 0 {
+		m.switchRoom(selected.ID)
+		m.viewport.GotoBottom()
+		return
+	}
 	joinMsg := &protocol.Message{
 		Type:    "command",
 		FromID:  m.id,
@@ -295,6 +301,7 @@ func (m *Model) handleIncoming(msg *protocol.Message) {
 			return
 		}
 		m.switchRoom(uint(roomID))
+		m.viewport.GotoBottom()
 		// If we have no messages for this room yet, load history
 		state := m.currentRoom()
 		if len(state.messages) == 0 && !state.historyLoading {
