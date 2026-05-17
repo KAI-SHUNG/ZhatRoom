@@ -38,13 +38,12 @@ var (
 	sidebarItemStyle   = lipgloss.NewStyle().Background(lipgloss.Color("234")).Foreground(lipgloss.Color("243"))
 	sidebarActiveStyle = lipgloss.NewStyle().Background(lipgloss.Color("234")).Foreground(lipgloss.Color("252")).Bold(true)
 	sidebarCursorStyle = lipgloss.NewStyle().Background(lipgloss.Color("239")).Foreground(lipgloss.Color("15")).Bold(true)
-	chatAreaStyle      = lipgloss.NewStyle().Background(lipgloss.Color("235"))
-	footerStyle        = lipgloss.NewStyle().Background(lipgloss.Color("235"))
+	chatBgStyle        = lipgloss.NewStyle().Background(lipgloss.Color("235"))
 )
 
 var (
-	modeInputStyle = lipgloss.NewStyle().Background(lipgloss.Color("235")).Foreground(lipgloss.Color("243")).Faint(true)
-	modeEscStyle   = lipgloss.NewStyle().Background(lipgloss.Color("235")).Foreground(lipgloss.Color("243")).Faint(true)
+	modeInputStyle = lipgloss.NewStyle().Background(lipgloss.Color("235")).Foreground(lipgloss.Color("252"))
+	modeEscStyle   = lipgloss.NewStyle().Background(lipgloss.Color("235")).Foreground(lipgloss.Color("252"))
 )
 
 func renderMessages(msgs []protocol.Message, width int, myID string) string {
@@ -125,8 +124,8 @@ func (m *Model) matchingCommands() []cmdEntry {
 
 func (m *Model) footerHeight() int {
 	hints := m.matchingCommands()
-	// padding(1) + input(1) + mode indicator(1) + hints
-	return 3 + len(hints)
+	// divider(1) + padding(2) + input(1) + mode indicator(1) + hints
+	return 4 + len(hints)
 }
 
 func (m *Model) renderStatusBar() string {
@@ -138,13 +137,12 @@ func (m *Model) renderStatusBar() string {
 		}
 	}
 	left := fmt.Sprintf(" #%s  %d online", m.currentRoomName, online)
-	right := ""
 
-	gap := m.winWidth - lipgloss.Width(left) - lipgloss.Width(right)
+	gap := m.winWidth - lipgloss.Width(left)
 	if gap < 0 {
 		gap = 0
 	}
-	return statusBarStyle.Width(m.winWidth).Render(left + strings.Repeat(" ", gap) + right)
+	return statusBarStyle.Width(m.winWidth).Render(left + strings.Repeat(" ", gap))
 }
 
 func (m *Model) renderSidebar() string {
@@ -172,9 +170,9 @@ func (m *Model) renderSidebar() string {
 		lines = append(lines, style.Width(sidebarWidth).Render(line))
 	}
 
-	// Fill remaining height (status bar + divider + footer area)
+	// Fill remaining height to match viewport + footer
 	footerH := m.footerHeight()
-	remaining := m.winHeight - 1 - 1 - footerH - len(lines) // -statusBar -divider -footer
+	remaining := m.winHeight - 1 - footerH - len(lines) // -statusBar -footer
 	for i := 0; i < remaining; i++ {
 		lines = append(lines, sidebarStyle.Width(sidebarWidth).Render(""))
 	}
@@ -187,8 +185,12 @@ func (m *Model) renderFooter() string {
 
 	// Divider
 	divider := lipgloss.NewStyle().
+		Background(lipgloss.Color("235")).
 		Foreground(lipgloss.Color("240")).
-		SetString(strings.Repeat("─", max(chatWidth, 1))).String()
+		Render(strings.Repeat("─", max(chatWidth, 1)))
+
+	// Padding lines
+	emptyLine := chatBgStyle.Width(chatWidth).Render("")
 
 	// Input line
 	inputLine := m.input.View()
@@ -219,13 +221,17 @@ func (m *Model) renderFooter() string {
 		modeText = modeEscStyle.Width(chatWidth).Render("-- ESC --")
 	}
 
-	// Compose: divider + padding + input + hints + mode
+	// Sidebar padding for each line
 	sbPad := sidebarStyle.Width(sidebarWidth).Render("")
-	sep := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Background(lipgloss.Color("235")).Render("│")
+	sep := lipgloss.NewStyle().Background(lipgloss.Color("234")).Foreground(lipgloss.Color("240")).Render("│")
 
-	footer := sbPad + sep + divider + "\n" +
-		sbPad + sep + " " + inputLine + hintLines + "\n" +
-		sbPad + sep + modeText
+	// Compose all footer lines with sidebar + separator prefix
+	chatPrefix := sbPad + sep
+	footer := chatPrefix + divider + "\n" +
+		chatPrefix + emptyLine + "\n" +
+		chatPrefix + emptyLine + "\n" +
+		chatPrefix + " " + inputLine + hintLines + "\n" +
+		chatPrefix + modeText
 
 	return footer
 }

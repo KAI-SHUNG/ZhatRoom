@@ -20,7 +20,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ready = true
 		m.winWidth = msg.Width
 		m.winHeight = msg.Height
-		m.viewport.Height = msg.Height - 1 - m.footerHeight() // -1 for status bar
+		m.viewport.Height = msg.Height - 1 - m.footerHeight()
 		m.viewport.YPosition = 0
 		m.input.Width = msg.Width - sidebarWidth - 4
 		if !m.welcomeSent && m.viewport.Height > 0 {
@@ -86,7 +86,6 @@ func (m *Model) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if idx < 0 || idx >= len(hints) {
 				idx = 0
 			}
-			// For /room subcommands, replace after "/room "
 			val := m.input.Value()
 			if len(val) >= 6 && strings.ToLower(val[:6]) == "/room " {
 				m.input.SetValue("/room " + hints[idx].name)
@@ -119,7 +118,6 @@ func (m *Model) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.KeyEnter:
-		// if a command is highlighted, fill it instead of sending
 		if len(hints) > 0 && m.cmdIdx >= 0 && m.cmdIdx < len(hints) {
 			val := m.input.Value()
 			if len(val) >= 6 && strings.ToLower(val[:6]) == "/room " {
@@ -194,7 +192,6 @@ func (m *Model) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "h":
 		m.mode = SidebarMode
-		// Set cursor to current room
 		for i, r := range m.roomList {
 			if r.ID == m.currentRoomID {
 				m.sidebarCursor = i
@@ -234,17 +231,28 @@ func (m *Model) updateSidebarMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.sidebarCursor < len(m.roomList)-1 {
 			m.sidebarCursor++
 		}
-		// Immediately switch room content
-		m.switchToSidebarRoom()
+		m.previewSidebarRoom()
 		return m, nil
 
 	case "k":
 		if m.sidebarCursor > 0 {
 			m.sidebarCursor--
 		}
-		// Immediately switch room content
-		m.switchToSidebarRoom()
+		m.previewSidebarRoom()
 		return m, nil
+
+	case "enter":
+		// Formal join — send /room join to server
+		m.commitSidebarRoom()
+		m.mode = NormalMode
+		return m, nil
+
+	case "i":
+		// Formal join + enter input mode
+		m.commitSidebarRoom()
+		m.mode = InputMode
+		m.input.Focus()
+		return m, textinput.Blink
 
 	case "ctrl+c":
 		return m, tea.Quit
@@ -253,7 +261,8 @@ func (m *Model) updateSidebarMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) switchToSidebarRoom() {
+// previewSidebarRoom switches viewport content locally (no server message).
+func (m *Model) previewSidebarRoom() {
 	if m.sidebarCursor < 0 || m.sidebarCursor >= len(m.roomList) {
 		return
 	}
@@ -261,10 +270,18 @@ func (m *Model) switchToSidebarRoom() {
 	if selected.ID == m.currentRoomID {
 		return
 	}
-	// If we already have state for this room, just switch locally (no server roundtrip)
-	if state, ok := m.roomStates[selected.ID]; ok && len(state.messages) > 0 {
-		m.switchRoom(selected.ID)
-		m.viewport.GotoBottom()
+	// Local switch — no server roundtrip, no join/leave broadcast
+	m.switchRoom(selected.ID)
+	m.viewport.GotoBottom()
+}
+
+// commitSidebarRoom sends /room join to server for formal join.
+func (m *Model) commitSidebarRoom() {
+	if m.sidebarCursor < 0 || m.sidebarCursor >= len(m.roomList) {
+		return
+	}
+	selected := m.roomList[m.sidebarCursor]
+	if selected.ID == m.currentRoomID {
 		return
 	}
 	joinMsg := &protocol.Message{
@@ -287,7 +304,6 @@ func (m *Model) handleIncoming(msg *protocol.Message) {
 			return
 		}
 		m.roomList = rooms
-		// Ensure all rooms have a state entry
 		for _, r := range rooms {
 			if _, ok := m.roomStates[r.ID]; !ok {
 				m.roomStates[r.ID] = &RoomState{}
@@ -302,7 +318,6 @@ func (m *Model) handleIncoming(msg *protocol.Message) {
 		}
 		m.switchRoom(uint(roomID))
 		m.viewport.GotoBottom()
-		// If we have no messages for this room yet, load history
 		state := m.currentRoom()
 		if len(state.messages) == 0 && !state.historyLoading {
 			state.historyLoading = true
@@ -337,7 +352,6 @@ func (m *Model) handleIncoming(msg *protocol.Message) {
 		if msg.CreatedAt > 0 && (msg.CreatedAt < state.oldestTS || state.oldestTS == 0) {
 			state.oldestTS = msg.CreatedAt
 		}
-		// Only update viewport if this message is for the current room
 		if msg.RoomID == m.currentRoomID || msg.RoomID == 0 {
 			m.viewport.SetContent(renderMessages(state.messages, m.viewport.Width, m.id))
 			m.viewport.GotoBottom()
