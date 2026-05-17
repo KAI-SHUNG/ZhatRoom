@@ -185,7 +185,6 @@ func (m *Model) renderFooter() string {
 
 	// Divider
 	divider := lipgloss.NewStyle().
-		Background(lipgloss.Color("235")).
 		Foreground(lipgloss.Color("240")).
 		Render(strings.Repeat("─", max(chatWidth, 1)))
 
