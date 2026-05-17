@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"ZhatRoom/internal/protocol"
 
@@ -21,7 +22,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.winHeight = msg.Height
 		m.viewport.Height = msg.Height - 1 - m.footerHeight() // -1 for status bar
 		m.viewport.YPosition = 0
-		m.input.Width = msg.Width - 4
+		m.input.Width = msg.Width - sidebarWidth - 4
 		if !m.welcomeSent && m.viewport.Height > 0 {
 			state := m.currentRoom()
 			state.messages = append(state.messages, protocol.Message{
@@ -49,14 +50,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, waitForMessage(m.connector))
 
 	case tea.MouseMsg:
-		if m.mode != SidebarMode {
-			var cmd tea.Cmd
-			m.viewport, cmd = m.viewport.Update(msg)
-			if msg.Button == tea.MouseButtonWheelUp {
-				m.tryLoadHistory()
-			}
-			cmds = append(cmds, cmd)
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+		if msg.Button == tea.MouseButtonWheelUp {
+			m.tryLoadHistory()
 		}
+		cmds = append(cmds, cmd)
 
 	case errMsg:
 		m.err = msg.err
@@ -87,7 +86,13 @@ func (m *Model) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if idx < 0 || idx >= len(hints) {
 				idx = 0
 			}
-			m.input.SetValue("/" + hints[idx].name)
+			// For /room subcommands, replace after "/room "
+			val := m.input.Value()
+			if len(val) >= 6 && strings.ToLower(val[:6]) == "/room " {
+				m.input.SetValue("/room " + hints[idx].name)
+			} else {
+				m.input.SetValue("/" + hints[idx].name)
+			}
 			m.input.CursorEnd()
 			m.cmdIdx = -1
 			return m, nil
@@ -116,7 +121,12 @@ func (m *Model) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEnter:
 		// if a command is highlighted, fill it instead of sending
 		if len(hints) > 0 && m.cmdIdx >= 0 && m.cmdIdx < len(hints) {
-			m.input.SetValue("/" + hints[m.cmdIdx].name)
+			val := m.input.Value()
+			if len(val) >= 6 && strings.ToLower(val[:6]) == "/room " {
+				m.input.SetValue("/room " + hints[m.cmdIdx].name)
+			} else {
+				m.input.SetValue("/" + hints[m.cmdIdx].name)
+			}
 			m.input.CursorEnd()
 			m.cmdIdx = -1
 			return m, nil
@@ -205,9 +215,6 @@ func (m *Model) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.viewport.GotoBottom()
 		return m, nil
 
-	case "q":
-		return m, tea.Quit
-
 	case "ctrl+c":
 		return m, tea.Quit
 	}
@@ -227,37 +234,41 @@ func (m *Model) updateSidebarMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.sidebarCursor < len(m.roomList)-1 {
 			m.sidebarCursor++
 		}
+		// Immediately switch room content
+		m.switchToSidebarRoom()
 		return m, nil
 
 	case "k":
 		if m.sidebarCursor > 0 {
 			m.sidebarCursor--
 		}
+		// Immediately switch room content
+		m.switchToSidebarRoom()
 		return m, nil
 
-	case "enter":
-		if m.sidebarCursor >= 0 && m.sidebarCursor < len(m.roomList) {
-			selected := m.roomList[m.sidebarCursor]
-			if selected.ID != m.currentRoomID {
-				joinMsg := &protocol.Message{
-					Type:    "command",
-					FromID:  m.id,
-					Content: fmt.Sprintf("/room join %d", selected.ID),
-				}
-				if err := m.connector.Send(joinMsg); err != nil {
-					m.err = err
-					return m, tea.Quit
-				}
-			}
-		}
-		m.mode = NormalMode
-		return m, nil
-
-	case "q":
+	case "ctrl+c":
 		return m, tea.Quit
 	}
 
 	return m, nil
+}
+
+func (m *Model) switchToSidebarRoom() {
+	if m.sidebarCursor < 0 || m.sidebarCursor >= len(m.roomList) {
+		return
+	}
+	selected := m.roomList[m.sidebarCursor]
+	if selected.ID == m.currentRoomID {
+		return
+	}
+	joinMsg := &protocol.Message{
+		Type:    "command",
+		FromID:  m.id,
+		Content: fmt.Sprintf("/room join %d", selected.ID),
+	}
+	if err := m.connector.Send(joinMsg); err != nil {
+		m.err = err
+	}
 }
 
 // --- Incoming message handling ---

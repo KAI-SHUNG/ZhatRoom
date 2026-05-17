@@ -32,12 +32,12 @@ var (
 )
 
 var (
-	statusBarStyle      = lipgloss.NewStyle().Background(lipgloss.Color("237")).Foreground(lipgloss.Color("252")).Bold(true)
-	sidebarStyle        = lipgloss.NewStyle().Background(lipgloss.Color("235")).Foreground(lipgloss.Color("252"))
-	sidebarItemStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	sidebarActiveStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("43")).Bold(true)
-	sidebarCursorStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Background(lipgloss.Color("237")).Bold(true)
-	modeIndicatorStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+	statusBarStyle     = lipgloss.NewStyle().Background(lipgloss.Color("237")).Foreground(lipgloss.Color("252")).Bold(true)
+	sidebarHeaderStyle = lipgloss.NewStyle().Background(lipgloss.Color("238")).Foreground(lipgloss.Color("15")).Bold(true)
+	sidebarStyle       = lipgloss.NewStyle().Background(lipgloss.Color("235")).Foreground(lipgloss.Color("252"))
+	sidebarItemStyle   = lipgloss.NewStyle().Background(lipgloss.Color("235")).Foreground(lipgloss.Color("252"))
+	sidebarActiveStyle = lipgloss.NewStyle().Background(lipgloss.Color("235")).Foreground(lipgloss.Color("43")).Bold(true)
+	sidebarCursorStyle = lipgloss.NewStyle().Background(lipgloss.Color("240")).Foreground(lipgloss.Color("15")).Bold(true)
 )
 
 func renderMessages(msgs []protocol.Message, width int, myID string) string {
@@ -92,6 +92,20 @@ func (m *Model) matchingCommands() []cmdEntry {
 	if len(val) == 0 || val[0] != '/' {
 		return nil
 	}
+
+	// Check for /room subcommands
+	lower := strings.ToLower(val)
+	if strings.HasPrefix(lower, "/room ") {
+		subPrefix := strings.TrimPrefix(lower, "/room ")
+		var matches []cmdEntry
+		for _, c := range roomSubCommands {
+			if strings.HasPrefix(c.name, subPrefix) {
+				matches = append(matches, c)
+			}
+		}
+		return matches
+	}
+
 	prefix := strings.ToLower(val[1:])
 	var matches []cmdEntry
 	for _, c := range builtinCommands {
@@ -103,11 +117,8 @@ func (m *Model) matchingCommands() []cmdEntry {
 }
 
 func (m *Model) footerHeight() int {
-	if m.mode == InputMode {
-		hints := m.matchingCommands()
-		return 3 + len(hints) // divider + input + hint lines
-	}
-	return 2 // divider + mode hint
+	hints := m.matchingCommands()
+	return 2 + len(hints) // input + hint lines (divider is in the main layout)
 }
 
 func (m *Model) renderStatusBar() string {
@@ -130,8 +141,10 @@ func (m *Model) renderStatusBar() string {
 
 func (m *Model) renderSidebar() string {
 	var lines []string
-	lines = append(lines, sidebarStyle.Width(sidebarWidth).Render("  ROOMS"))
-	lines = append(lines, sidebarStyle.Width(sidebarWidth).Render("  "+strings.Repeat("─", sidebarWidth-4)))
+	// Header
+	header := sidebarHeaderStyle.Width(sidebarWidth).Render("  ROOMS")
+	lines = append(lines, header)
+	lines = append(lines, sidebarHeaderStyle.Width(sidebarWidth).Render("  "+strings.Repeat("─", sidebarWidth-4)))
 
 	for i, r := range m.roomList {
 		prefix := "  "
@@ -140,7 +153,7 @@ func (m *Model) renderSidebar() string {
 			prefix = "▸ "
 			style = sidebarActiveStyle
 		}
-		if i == m.sidebarCursor && m.mode == SidebarMode {
+		if m.mode == SidebarMode && i == m.sidebarCursor {
 			style = sidebarCursorStyle
 			prefix = "▸ "
 		}
@@ -149,7 +162,7 @@ func (m *Model) renderSidebar() string {
 			name = name[:sidebarWidth-11] + "..."
 		}
 		line := fmt.Sprintf("%s%s (%d)", prefix, name, r.Members)
-		lines = append(lines, sidebarStyle.Width(sidebarWidth).Render(style.Render(line)))
+		lines = append(lines, style.Width(sidebarWidth).Render(line))
 	}
 
 	// Fill remaining height
@@ -170,56 +183,47 @@ func (m *Model) View() string {
 		return fmt.Sprintf("\n  Disconnected: %v\n", m.err)
 	}
 
-	// Status bar (always visible)
+	// Status bar (always visible, full width)
 	statusBar := m.renderStatusBar()
 
-	// Main content area
-	var mainContent string
-	chatWidth := m.winWidth
-	if m.mode != InputMode {
-		sidebar := m.renderSidebar()
-		chatWidth = m.winWidth - sidebarWidth
-		m.viewport.Width = chatWidth
-		mainContent = lipgloss.JoinHorizontal(lipgloss.Top, sidebar, m.viewport.View())
-	} else {
-		m.viewport.Width = chatWidth
-		mainContent = m.viewport.View()
-	}
+	// Sidebar is always visible
+	sidebar := m.renderSidebar()
+	chatWidth := m.winWidth - sidebarWidth
+	m.viewport.Width = chatWidth
+	mainContent := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, m.viewport.View())
 
-	// Divider
+	// Divider (chat area width only)
 	divider := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240")).
 		SetString(strings.Repeat("─", max(chatWidth, 1))).String()
 
-	// Footer
-	var footer string
-	if m.mode == InputMode {
-		footer = m.input.View()
-		hints := m.matchingCommands()
-		if len(hints) > 0 {
-			for i, h := range hints {
-				selected := i == m.cmdIdx
-				if selected {
-					name := cmdSelectStyle.Render("/" + h.name)
-					desc := cmdSelectStyle.Render(" " + h.desc)
-					footer += "\n" + "▸ " + name + desc
-				} else {
-					name := cmdNameStyle.Render("/" + h.name)
-					desc := cmdDescStyle.Render(h.desc)
-					footer += "\n" + cmdHintStyle.Render("  ") + name + "  " + desc
-				}
+	// Footer: input + hints
+	footer := m.input.View()
+	hints := m.matchingCommands()
+	if len(hints) > 0 {
+		for i, h := range hints {
+			selected := i == m.cmdIdx
+			if selected {
+				name := cmdSelectStyle.Render("/" + h.name)
+				desc := cmdSelectStyle.Render(" " + h.desc)
+				footer += "\n" + "▸ " + name + desc
+			} else {
+				name := cmdNameStyle.Render("/" + h.name)
+				desc := cmdDescStyle.Render(h.desc)
+				footer += "\n" + cmdHintStyle.Render("  ") + name + "  " + desc
 			}
 		}
-	} else {
-		var modeHint string
-		switch m.mode {
-		case NormalMode:
-			modeHint = "  [i] input  [h] sidebar  [q] quit"
-		case SidebarMode:
-			modeHint = "  [j/k] navigate  [Enter] switch  [l] back"
-		}
-		footer = modeIndicatorStyle.Render(modeHint)
 	}
 
-	return statusBar + "\n" + mainContent + "\n" + divider + "\n" + footer
+	// Pad footer to full width so sidebar background extends
+	footerLines := strings.Split(footer, "\n")
+	paddedFooter := ""
+	for _, fl := range footerLines {
+		// sidebar empty padding + divider + footer line
+		sbPad := sidebarStyle.Width(sidebarWidth).Render("")
+		paddedFooter += sbPad + lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("│") + fl + "\n"
+	}
+	paddedFooter = strings.TrimRight(paddedFooter, "\n")
+
+	return statusBar + "\n" + mainContent + "\n" + sidebarStyle.Width(sidebarWidth).Render("") + divider + "\n" + paddedFooter
 }

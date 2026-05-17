@@ -22,6 +22,13 @@ var builtinCommands = []cmdEntry{
 	{"history", "加载历史消息"},
 }
 
+var roomSubCommands = []cmdEntry{
+	{"create", "创建房间"},
+	{"join", "加入房间"},
+	{"delete", "删除房间"},
+	{"list", "列出所有房间"},
+}
+
 type Mode int
 
 const (
