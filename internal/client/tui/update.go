@@ -250,10 +250,17 @@ func (m *Model) cursorLinePos() int {
 		return -1
 	}
 	line := 0
+	var prevTS int64
 	for i := 0; i < m.cursorMsgIdx && i < len(state.messages); i++ {
 		msg := state.messages[i]
 		if msg.Type == "history_end" {
 			continue
+		}
+		if msg.CreatedAt > 0 && prevTS > 0 && msg.CreatedAt-prevTS > 300 {
+			line++ // timestamp separator
+		}
+		if msg.CreatedAt > 0 {
+			prevTS = msg.CreatedAt
 		}
 		if msg.Type != "system" && line > 0 {
 			line++ // blank separator
