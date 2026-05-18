@@ -17,9 +17,11 @@ var (
 			Foreground(lipgloss.Color("240")).
 			SetString(strings.Repeat("─", 30))
 
-	msgStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
-	sysStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("43"))
-	otherStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("14"))
+	msgStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
+	sysStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("43"))
+	otherStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("14"))
+	highlightStyle = lipgloss.NewStyle().Background(lipgloss.Color("237"))
+	inputHLStyle   = lipgloss.NewStyle().Background(lipgloss.Color("236"))
 )
 
 var timestampStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
@@ -46,11 +48,13 @@ var (
 	modeEscStyle   = lipgloss.NewStyle().Background(lipgloss.Color("235")).Foreground(lipgloss.Color("252"))
 )
 
-func renderMessages(msgs []protocol.Message, width int, myID string) string {
+func renderMessages(msgs []protocol.Message, width int, myID string, cursorLine int) (string, int, []int) {
 	var b strings.Builder
 	var prevTS int64
+	visualLine := 0
+	var lineMap []int
 
-	for _, msg := range msgs {
+	for i, msg := range msgs {
 		if msg.Type == "history_end" {
 			continue
 		}
@@ -60,6 +64,8 @@ func renderMessages(msgs []protocol.Message, width int, myID string) string {
 			ts := time.Unix(msg.CreatedAt, 0).Format("15:04")
 			label := "─── " + ts + " ───"
 			b.WriteString(timestampStyle.Width(width).Align(lipgloss.Center).Render(label) + "\n")
+			lineMap = append(lineMap, -1)
+			visualLine++
 		}
 		if msg.CreatedAt > 0 {
 			prevTS = msg.CreatedAt
@@ -68,6 +74,8 @@ func renderMessages(msgs []protocol.Message, width int, myID string) string {
 		// blank line before non-system messages (except at the start)
 		if msg.Type != "system" && b.Len() > 0 {
 			b.WriteString("\n")
+			lineMap = append(lineMap, -1)
+			visualLine++
 		}
 
 		var line string
@@ -88,9 +96,32 @@ func renderMessages(msgs []protocol.Message, width int, myID string) string {
 				Align(lipgloss.Left).
 				Render(fmt.Sprintf("[%s]: %s", msg.From, msg.Content))
 		}
+		if visualLine == cursorLine {
+			line = highlightStyle.Render(line)
+		}
 		b.WriteString(line + "\n")
+
+		// Calculate visual lines for this message
+		content := msg.Content
+		if msg.Type == "system" {
+			content = fmt.Sprintf("[SYSTEM]: %s", msg.Content)
+		} else if msg.FromID == myID {
+			content = fmt.Sprintf("[You]: %s", msg.Content)
+		} else {
+			content = fmt.Sprintf("[%s]: %s", msg.From, msg.Content)
+		}
+		vLines := 1
+		for _, part := range strings.Split(content, "\n") {
+			if len(part) > width {
+				vLines += (len(part) - 1) / width
+			}
+		}
+		for j := 0; j < vLines; j++ {
+			lineMap = append(lineMap, i)
+			visualLine++
+		}
 	}
-	return b.String()
+	return b.String(), visualLine, lineMap
 }
 
 func (m *Model) matchingCommands() []cmdEntry {
@@ -192,6 +223,9 @@ func (m *Model) renderFooter() string {
 
 	// Input line
 	inputLine := m.input.View()
+	if m.mode == NormalMode {
+		inputLine = inputHLStyle.Render("▸ " + strings.TrimLeft(inputLine, " "))
+	}
 
 	// Sidebar prefix for each line
 	sbPad := sidebarStyle.Width(sidebarWidth).Render("")
@@ -221,9 +255,12 @@ func (m *Model) renderFooter() string {
 
 	// Mode indicator
 	var modeText string
-	if m.mode == InputMode {
+	switch m.mode {
+	case InputMode:
 		modeText = modeInputStyle.Width(chatWidth).Render("-- INPUT --")
-	} else {
+	case NormalMode:
+		modeText = lipgloss.NewStyle().Background(lipgloss.Color("238")).Foreground(lipgloss.Color("252")).Width(chatWidth).Render("-- NORMAL --")
+	default:
 		modeText = modeEscStyle.Width(chatWidth).Render("-- ESC --")
 	}
 	footer += "\n" + prefix + modeText

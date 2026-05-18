@@ -30,7 +30,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				From:    "System",
 				Content: fmt.Sprintf("Welcome to ZhatRoom! You are %s (%s)", m.nickname, m.id),
 			})
-			m.viewport.SetContent(renderMessages(state.messages, m.viewport.Width, m.id))
+			content, _, lineMap := renderMessages(state.messages, m.viewport.Width, m.id, -1)
+			m.viewport.SetContent(content)
+			m.visualLineMap = lineMap
 			m.viewport.GotoBottom()
 			m.welcomeSent = true
 		}
@@ -78,6 +80,11 @@ func (m *Model) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEsc:
 		m.mode = NormalMode
 		m.input.Blur()
+		state := m.currentRoom()
+		m.cursorMsgIdx = len(state.messages) - 1
+		m.cursorSubLine = 0
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
 		return m, nil
 
 	case tea.KeyTab:
@@ -187,11 +194,15 @@ func (m *Model) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "i", "a":
 		m.mode = InputMode
+		m.cursorMsgIdx = -1
+		m.cursorSubLine = 0
 		m.input.Focus()
 		return m, textinput.Blink
 
 	case "h":
 		m.mode = SidebarMode
+		m.cursorMsgIdx = -1
+		m.cursorSubLine = 0
 		for i, r := range m.roomList {
 			if r.ID == m.currentRoomID {
 				m.sidebarCursor = i
@@ -201,14 +212,18 @@ func (m *Model) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "j":
-		m.viewport.ScrollDown(1)
+		m.moveCursorDown()
 		return m, nil
 
 	case "k":
-		m.viewport.ScrollUp(1)
+		m.moveCursorUp()
 		return m, nil
 
 	case "G":
+		state := m.currentRoom()
+		m.cursorMsgIdx = len(state.messages) - 1
+		m.cursorSubLine = 0
+		m.updateViewportContent()
 		m.viewport.GotoBottom()
 		return m, nil
 
@@ -219,12 +234,174 @@ func (m *Model) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateViewportContent re-renders viewport content with cursor highlight.
+func (m *Model) updateViewportContent() {
+	state := m.currentRoom()
+	cursorLine := m.cursorLinePos()
+	content, _, lineMap := renderMessages(state.messages, m.viewport.Width, m.id, cursorLine)
+	m.viewport.SetContent(content)
+	m.visualLineMap = lineMap
+}
+
+// cursorLinePos returns the visual line index of the cursor.
+func (m *Model) cursorLinePos() int {
+	state := m.currentRoom()
+	if m.cursorMsgIdx < 0 || m.cursorMsgIdx >= len(state.messages) {
+		return -1
+	}
+	line := 0
+	for i := 0; i < m.cursorMsgIdx && i < len(state.messages); i++ {
+		msg := state.messages[i]
+		if msg.Type == "history_end" {
+			continue
+		}
+		if msg.Type != "system" && line > 0 {
+			line++ // blank separator
+		}
+		content := msg.Content
+		if msg.Type == "system" {
+			content = fmt.Sprintf("[SYSTEM]: %s", msg.Content)
+		} else if msg.FromID == m.id {
+			content = fmt.Sprintf("[You]: %s", msg.Content)
+		} else {
+			content = fmt.Sprintf("[%s]: %s", msg.From, msg.Content)
+		}
+		vLines := 1
+		for _, part := range strings.Split(content, "\n") {
+			if len(part) > m.viewport.Width {
+				vLines += (len(part) - 1) / m.viewport.Width
+			}
+		}
+		line += vLines
+	}
+	return line + m.cursorSubLine
+}
+
+// moveCursorDown moves the cursor down one visual line.
+func (m *Model) moveCursorDown() {
+	state := m.currentRoom()
+	msgs := state.messages
+	if len(msgs) == 0 {
+		return
+	}
+	if m.cursorMsgIdx < 0 {
+		m.cursorMsgIdx = len(msgs) - 1
+		m.cursorSubLine = 0
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return
+	}
+	if m.cursorMsgIdx >= len(msgs)-1 {
+		m.viewport.GotoBottom()
+		return
+	}
+
+	m.cursorSubLine++
+	msg := msgs[m.cursorMsgIdx]
+	if msg.Type == "history_end" {
+		m.cursorMsgIdx++
+		m.cursorSubLine = 0
+	} else {
+		content := msg.Content
+		if msg.Type == "system" {
+			content = fmt.Sprintf("[SYSTEM]: %s", msg.Content)
+		} else if msg.FromID == m.id {
+			content = fmt.Sprintf("[You]: %s", msg.Content)
+		} else {
+			content = fmt.Sprintf("[%s]: %s", msg.From, msg.Content)
+		}
+		vLines := 1
+		for _, part := range strings.Split(content, "\n") {
+			if len(part) > m.viewport.Width {
+				vLines += (len(part) - 1) / m.viewport.Width
+			}
+		}
+		if m.cursorSubLine >= vLines {
+			m.cursorMsgIdx++
+			m.cursorSubLine = 0
+		}
+	}
+
+	m.updateViewportContent()
+
+	cursorLine := m.cursorLinePos()
+	if cursorLine >= m.viewport.YOffset+m.viewport.Height {
+		m.viewport.YOffset = cursorLine - m.viewport.Height + 1
+	}
+}
+
+// moveCursorUp moves the cursor up one visual line.
+func (m *Model) moveCursorUp() {
+	state := m.currentRoom()
+	msgs := state.messages
+	if len(msgs) == 0 {
+		return
+	}
+	if m.cursorMsgIdx < 0 {
+		m.cursorMsgIdx = len(msgs) - 1
+		m.cursorSubLine = 0
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return
+	}
+	if m.cursorMsgIdx >= len(msgs) {
+		m.cursorMsgIdx = len(msgs) - 1
+	}
+
+	if m.cursorSubLine > 0 {
+		m.cursorSubLine--
+	} else if m.cursorMsgIdx > 0 {
+		m.cursorMsgIdx--
+		// Skip history_end markers
+		for m.cursorMsgIdx > 0 && msgs[m.cursorMsgIdx].Type == "history_end" {
+			m.cursorMsgIdx--
+		}
+		// Set to last sub-line of the previous message
+		prevMsg := msgs[m.cursorMsgIdx]
+		if prevMsg.Type == "history_end" {
+			m.cursorSubLine = 0
+		} else {
+			content := prevMsg.Content
+			if prevMsg.Type == "system" {
+				content = fmt.Sprintf("[SYSTEM]: %s", prevMsg.Content)
+			} else if prevMsg.FromID == m.id {
+				content = fmt.Sprintf("[You]: %s", prevMsg.Content)
+			} else {
+				content = fmt.Sprintf("[%s]: %s", prevMsg.From, prevMsg.Content)
+			}
+			vLines := 1
+			for _, part := range strings.Split(content, "\n") {
+				if len(part) > m.viewport.Width {
+					vLines += (len(part) - 1) / m.viewport.Width
+				}
+			}
+			m.cursorSubLine = vLines - 1
+		}
+	} else {
+		// At top, try loading history
+		m.tryLoadHistory()
+		return
+	}
+
+	m.updateViewportContent()
+
+	cursorLine := m.cursorLinePos()
+	if cursorLine < m.viewport.YOffset {
+		m.viewport.YOffset = cursorLine
+	}
+}
+
 // --- Sidebar Mode ---
 
 func (m *Model) updateSidebarMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "l", "esc":
 		m.mode = NormalMode
+		state := m.currentRoom()
+		m.cursorMsgIdx = len(state.messages) - 1
+		m.cursorSubLine = 0
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
 		return m, nil
 
 	case "j":
@@ -251,6 +428,8 @@ func (m *Model) updateSidebarMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Formal join + enter input mode
 		m.commitSidebarRoom()
 		m.mode = InputMode
+		m.cursorMsgIdx = -1
+		m.cursorSubLine = 0
 		m.input.Focus()
 		return m, textinput.Blink
 
@@ -348,13 +527,20 @@ func (m *Model) handleIncoming(msg *protocol.Message) {
 		if len(state.pendingHistory) > 0 {
 			m.flushHistory(state)
 		}
+		atBottom := m.viewport.AtBottom()
+		wasLast := m.cursorMsgIdx >= 0 && m.cursorMsgIdx >= len(state.messages)-1
 		state.messages = append(state.messages, *msg)
 		if msg.CreatedAt > 0 && (msg.CreatedAt < state.oldestTS || state.oldestTS == 0) {
 			state.oldestTS = msg.CreatedAt
 		}
 		if msg.RoomID == m.currentRoomID || msg.RoomID == 0 {
-			m.viewport.SetContent(renderMessages(state.messages, m.viewport.Width, m.id))
-			m.viewport.GotoBottom()
+			if wasLast {
+				m.cursorMsgIdx = len(state.messages) - 1
+			}
+			m.updateViewportContent()
+			if atBottom || wasLast {
+				m.viewport.GotoBottom()
+			}
 		}
 	}
 }
@@ -372,7 +558,9 @@ func (m *Model) flushHistory(state *RoomState) {
 	}
 	state.pendingHistory = nil
 	state.historyReceived = true
-	m.viewport.SetContent(renderMessages(state.messages, m.viewport.Width, m.id))
+	content, _, lineMap := renderMessages(state.messages, m.viewport.Width, m.id, -1)
+	m.viewport.SetContent(content)
+	m.visualLineMap = lineMap
 	if firstLoad {
 		m.viewport.GotoBottom()
 	}

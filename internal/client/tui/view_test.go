@@ -20,7 +20,7 @@ func TestRenderMessagesAlignment(t *testing.T) {
 		{Type: "system", From: "System", Content: "Alice has left the room"},
 	}
 
-	output := renderMessages(msgs, width, myID)
+	output, _, _ := renderMessages(msgs, width, myID, -1)
 	allLines := strings.Split(strings.TrimRight(output, "\n"), "\n")
 	// Filter out blank lines (added between non-system messages)
 	var lines []string
@@ -73,7 +73,7 @@ func TestRenderMessagesAlignment(t *testing.T) {
 }
 
 func TestRenderMessagesEmpty(t *testing.T) {
-	output := renderMessages(nil, 80, "user-1")
+	output, _, _ := renderMessages(nil, 80, "user-1", -1)
 	if output != "" {
 		t.Errorf("expected empty string, got %q", output)
 	}
@@ -85,7 +85,7 @@ func TestRenderMessagesNoOwnMessages(t *testing.T) {
 		{Type: "chat", From: "Charlie", FromID: "user-3", Content: "Hey"},
 	}
 
-	output := renderMessages(msgs, 60, "user-1")
+	output, _, _ := renderMessages(msgs, 60, "user-1", -1)
 	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
 
 	for _, line := range lines {
@@ -102,7 +102,7 @@ func TestRenderMessagesAllOwn(t *testing.T) {
 		{Type: "chat", From: "Me", FromID: "me-001", Content: "msg2"},
 	}
 
-	output := renderMessages(msgs, 60, "me-001")
+	output, _, _ := renderMessages(msgs, 60, "me-001", -1)
 	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
 
 	for _, line := range lines {
@@ -123,7 +123,7 @@ func TestRenderMessagesLongContent(t *testing.T) {
 		{Type: "chat", From: "Me", FromID: "user-1", Content: longText},
 	}
 
-	output := renderMessages(msgs, 40, "user-1")
+	output, _, _ := renderMessages(msgs, 40, "user-1", -1)
 	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
 
 	if len(lines) < 2 {
@@ -161,6 +161,6 @@ func TestRenderMessagesAlignmentVisual(t *testing.T) {
 		{Type: "chat", From: "Bob", FromID: "user-1", Content: "Yo"},
 	}
 
-	output := renderMessages(msgs, width, myID)
+	output, _, _ := renderMessages(msgs, width, myID, -1)
 	t.Logf("\n--- Visual alignment check (width=%d, each ─ = 10 chars) ---\n%s\n--- end ---", width, output)
 }

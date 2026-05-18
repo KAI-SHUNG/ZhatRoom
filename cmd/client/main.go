@@ -8,9 +8,13 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 func main() {
+	lipgloss.SetColorProfile(termenv.ANSI256)
+
 	cfgPath := flag.String("config", "/opt/zhatroom/config.yaml", "config file path")
 	id := flag.String("id", "001", "ZhatRoom Id")
 	nickname := flag.String("usr", "", "ZhatRoom nickname")
