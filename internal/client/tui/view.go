@@ -112,7 +112,7 @@ func renderMessages(msgs []protocol.Message, width int, myID string, cursorLine 
 		}
 		vLines := 1
 		for _, part := range strings.Split(content, "\n") {
-			if len(part) > width {
+			if width > 0 && len(part) > width {
 				vLines += (len(part) - 1) / width
 			}
 		}

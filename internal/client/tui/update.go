@@ -268,7 +268,7 @@ func (m *Model) cursorLinePos() int {
 		}
 		vLines := 1
 		for _, part := range strings.Split(content, "\n") {
-			if len(part) > m.viewport.Width {
+			if m.viewport.Width > 0 && len(part) > m.viewport.Width {
 				vLines += (len(part) - 1) / m.viewport.Width
 			}
 		}
@@ -312,7 +312,7 @@ func (m *Model) moveCursorDown() {
 		}
 		vLines := 1
 		for _, part := range strings.Split(content, "\n") {
-			if len(part) > m.viewport.Width {
+			if m.viewport.Width > 0 && len(part) > m.viewport.Width {
 				vLines += (len(part) - 1) / m.viewport.Width
 			}
 		}
