@@ -64,9 +64,10 @@ type Model struct {
 	mode Mode
 
 	// Cursor for NormalMode line navigation
-	cursorMsgIdx  int   // message index the cursor points to
-	cursorSubLine int   // sub-line within a multi-line message
-	visualLineMap []int // visual line index → message index
+	cursorMsgIdx      int   // message index the cursor points to
+	cursorVisualLine  int   // current visual line index in lineMap
+	cursorSubLine     int   // sub-line within a multi-line message
+	visualLineMap     []int // visual line index → message index
 
 	// Room management
 	roomStates     map[uint]*RoomState
@@ -134,6 +135,7 @@ func (m *Model) switchRoom(roomID uint) {
 	content, _, lineMap := renderMessages(state.messages, m.viewport.Width, m.id, -1)
 	m.viewport.SetContent(content)
 	m.visualLineMap = lineMap
+	m.cursorVisualLine = -1
 	m.viewport.YOffset = state.viewportPos
 }
 

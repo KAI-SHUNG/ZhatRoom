@@ -80,10 +80,7 @@ func (m *Model) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEsc:
 		m.mode = NormalMode
 		m.input.Blur()
-		state := m.currentRoom()
-		m.cursorMsgIdx = len(state.messages) - 1
-		m.cursorSubLine = 0
-		m.updateViewportContent()
+		m.setCursorLastMsg()
 		m.viewport.GotoBottom()
 		return m, nil
 
@@ -196,6 +193,7 @@ func (m *Model) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = InputMode
 		m.cursorMsgIdx = -1
 		m.cursorSubLine = 0
+		m.cursorVisualLine = -1
 		m.input.Focus()
 		return m, textinput.Blink
 
@@ -203,6 +201,7 @@ func (m *Model) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = SidebarMode
 		m.cursorMsgIdx = -1
 		m.cursorSubLine = 0
+		m.cursorVisualLine = -1
 		for i, r := range m.roomList {
 			if r.ID == m.currentRoomID {
 				m.sidebarCursor = i
@@ -220,10 +219,7 @@ func (m *Model) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "G":
-		state := m.currentRoom()
-		m.cursorMsgIdx = len(state.messages) - 1
-		m.cursorSubLine = 0
-		m.updateViewportContent()
+		m.setCursorLastMsg()
 		m.viewport.GotoBottom()
 		return m, nil
 
@@ -237,63 +233,56 @@ func (m *Model) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // updateViewportContent re-renders viewport content with cursor highlight.
 func (m *Model) updateViewportContent() {
 	state := m.currentRoom()
-	cursorLine := m.cursorLinePos()
-	content, _, lineMap := renderMessages(state.messages, m.viewport.Width, m.id, cursorLine)
+	content, _, lineMap := renderMessages(state.messages, m.viewport.Width, m.id, m.cursorVisualLine)
 	m.viewport.SetContent(content)
 	m.visualLineMap = lineMap
 }
 
-// findCursorLine returns the visual line index for cursorMsgIdx+cursorSubLine.
-func (m *Model) findCursorLine() int {
-	if m.cursorMsgIdx < 0 {
-		return -1
-	}
-	count := 0
-	for i, idx := range m.visualLineMap {
-		if idx == m.cursorMsgIdx {
-			if count == m.cursorSubLine {
-				return i
-			}
-			count++
+// setCursorLastMsg sets the cursor to the last message and re-renders.
+func (m *Model) setCursorLastMsg() {
+	state := m.currentRoom()
+	m.cursorMsgIdx = len(state.messages) - 1
+	m.cursorSubLine = 0
+	// Render once to build lineMap, then find last message's line
+	content, _, lineMap := renderMessages(state.messages, m.viewport.Width, m.id, -1)
+	m.visualLineMap = lineMap
+	// Find first visual line of last message
+	for i := len(lineMap) - 1; i >= 0; i-- {
+		if lineMap[i] == m.cursorMsgIdx {
+			m.cursorVisualLine = i
+			break
 		}
 	}
-	// fallback: return first occurrence
-	for i, idx := range m.visualLineMap {
-		if idx == m.cursorMsgIdx {
-			return i
-		}
-	}
-	return -1
+	// Re-render with highlight on the correct line
+	content, _, lineMap = renderMessages(state.messages, m.viewport.Width, m.id, m.cursorVisualLine)
+	m.viewport.SetContent(content)
+	m.visualLineMap = lineMap
 }
 
 // cursorLinePos returns the visual line index of the cursor.
 func (m *Model) cursorLinePos() int {
-	return m.findCursorLine()
+	return m.cursorVisualLine
 }
 
 // moveCursorDown moves the cursor down one visual line.
 func (m *Model) moveCursorDown() {
 	state := m.currentRoom()
-	msgs := state.messages
-	if len(msgs) == 0 {
+	if len(state.messages) == 0 {
 		return
 	}
 	if m.cursorMsgIdx < 0 {
-		m.cursorMsgIdx = len(msgs) - 1
-		m.cursorSubLine = 0
-		m.updateViewportContent()
+		m.setCursorLastMsg()
 		m.viewport.GotoBottom()
 		return
 	}
 
-	curLine := m.findCursorLine()
-	if curLine < 0 || curLine+1 >= len(m.visualLineMap) {
+	if m.cursorVisualLine+1 >= len(m.visualLineMap) {
 		m.viewport.GotoBottom()
 		return
 	}
 
-	next := curLine + 1
-	nextIdx := m.visualLineMap[next]
+	m.cursorVisualLine++
+	nextIdx := m.visualLineMap[m.cursorVisualLine]
 	if nextIdx == m.cursorMsgIdx {
 		m.cursorSubLine++
 	} else {
@@ -302,53 +291,40 @@ func (m *Model) moveCursorDown() {
 	}
 	m.updateViewportContent()
 
-	cl := m.findCursorLine()
-	if cl >= m.viewport.YOffset+m.viewport.Height {
-		m.viewport.YOffset = cl - m.viewport.Height + 1
+	if m.cursorVisualLine >= m.viewport.YOffset+m.viewport.Height {
+		m.viewport.YOffset = m.cursorVisualLine - m.viewport.Height + 1
 	}
 }
 
 // moveCursorUp moves the cursor up one visual line.
 func (m *Model) moveCursorUp() {
 	state := m.currentRoom()
-	msgs := state.messages
-	if len(msgs) == 0 {
+	if len(state.messages) == 0 {
 		return
 	}
 	if m.cursorMsgIdx < 0 {
-		m.cursorMsgIdx = len(msgs) - 1
-		m.cursorSubLine = 0
-		m.updateViewportContent()
+		m.setCursorLastMsg()
 		m.viewport.GotoBottom()
 		return
 	}
 
-	curLine := m.findCursorLine()
-	if curLine <= 0 {
+	if m.cursorVisualLine <= 0 {
 		m.tryLoadHistory()
 		return
 	}
 
-	prev := curLine - 1
-	prevIdx := m.visualLineMap[prev]
+	m.cursorVisualLine--
+	prevIdx := m.visualLineMap[m.cursorVisualLine]
 	if prevIdx == m.cursorMsgIdx {
 		m.cursorSubLine--
 	} else {
-		// Count how many visual lines prevIdx has
-		count := 0
-		for _, idx := range m.visualLineMap {
-			if idx == prevIdx {
-				count++
-			}
-		}
 		m.cursorMsgIdx = prevIdx
-		m.cursorSubLine = count - 1
+		m.cursorSubLine = 0
 	}
 	m.updateViewportContent()
 
-	cl := m.findCursorLine()
-	if cl >= 0 && cl < m.viewport.YOffset {
-		m.viewport.YOffset = cl
+	if m.cursorVisualLine < m.viewport.YOffset {
+		m.viewport.YOffset = m.cursorVisualLine
 	}
 }
 
@@ -358,10 +334,7 @@ func (m *Model) updateSidebarMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "l", "esc":
 		m.mode = NormalMode
-		state := m.currentRoom()
-		m.cursorMsgIdx = len(state.messages) - 1
-		m.cursorSubLine = 0
-		m.updateViewportContent()
+		m.setCursorLastMsg()
 		m.viewport.GotoBottom()
 		return m, nil
 
@@ -391,6 +364,7 @@ func (m *Model) updateSidebarMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = InputMode
 		m.cursorMsgIdx = -1
 		m.cursorSubLine = 0
+		m.cursorVisualLine = -1
 		m.input.Focus()
 		return m, textinput.Blink
 
@@ -499,6 +473,15 @@ func (m *Model) handleIncoming(msg *protocol.Message) {
 				m.cursorMsgIdx = len(state.messages) - 1
 			}
 			m.updateViewportContent()
+			if wasLast {
+				// Update cursorVisualLine to the new last message
+				for i := len(m.visualLineMap) - 1; i >= 0; i-- {
+					if m.visualLineMap[i] == m.cursorMsgIdx {
+						m.cursorVisualLine = i
+						break
+					}
+				}
+			}
 			if atBottom || wasLast {
 				m.viewport.GotoBottom()
 			}
