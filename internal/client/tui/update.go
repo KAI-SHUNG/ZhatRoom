@@ -270,7 +270,7 @@ func (m *Model) moveCursorDown() {
 	if len(state.messages) == 0 {
 		return
 	}
-	if m.cursorMsgIdx < 0 {
+	if m.cursorVisualLine < 0 {
 		m.setCursorLastMsg()
 		m.viewport.GotoBottom()
 		return
@@ -302,7 +302,7 @@ func (m *Model) moveCursorUp() {
 	if len(state.messages) == 0 {
 		return
 	}
-	if m.cursorMsgIdx < 0 {
+	if m.cursorVisualLine < 0 {
 		m.setCursorLastMsg()
 		m.viewport.GotoBottom()
 		return
