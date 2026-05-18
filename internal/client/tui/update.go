@@ -243,45 +243,32 @@ func (m *Model) updateViewportContent() {
 	m.visualLineMap = lineMap
 }
 
-// cursorLinePos returns the visual line index of the cursor.
-func (m *Model) cursorLinePos() int {
-	state := m.currentRoom()
-	if m.cursorMsgIdx < 0 || m.cursorMsgIdx >= len(state.messages) {
+// findCursorLine returns the visual line index for cursorMsgIdx+cursorSubLine.
+func (m *Model) findCursorLine() int {
+	if m.cursorMsgIdx < 0 {
 		return -1
 	}
-	line := 0
-	var prevTS int64
-	for i := 0; i < m.cursorMsgIdx && i < len(state.messages); i++ {
-		msg := state.messages[i]
-		if msg.Type == "history_end" {
-			continue
-		}
-		if msg.CreatedAt > 0 && prevTS > 0 && msg.CreatedAt-prevTS > 300 {
-			line++ // timestamp separator
-		}
-		if msg.CreatedAt > 0 {
-			prevTS = msg.CreatedAt
-		}
-		if msg.Type != "system" && line > 0 {
-			line++ // blank separator
-		}
-		content := msg.Content
-		if msg.Type == "system" {
-			content = fmt.Sprintf("[SYSTEM]: %s", msg.Content)
-		} else if msg.FromID == m.id {
-			content = fmt.Sprintf("[You]: %s", msg.Content)
-		} else {
-			content = fmt.Sprintf("[%s]: %s", msg.From, msg.Content)
-		}
-		vLines := 1
-		for _, part := range strings.Split(content, "\n") {
-			if m.viewport.Width > 0 && len(part) > m.viewport.Width {
-				vLines += (len(part) - 1) / m.viewport.Width
+	count := 0
+	for i, idx := range m.visualLineMap {
+		if idx == m.cursorMsgIdx {
+			if count == m.cursorSubLine {
+				return i
 			}
+			count++
 		}
-		line += vLines
 	}
-	return line + m.cursorSubLine
+	// fallback: return first occurrence
+	for i, idx := range m.visualLineMap {
+		if idx == m.cursorMsgIdx {
+			return i
+		}
+	}
+	return -1
+}
+
+// cursorLinePos returns the visual line index of the cursor.
+func (m *Model) cursorLinePos() int {
+	return m.findCursorLine()
 }
 
 // moveCursorDown moves the cursor down one visual line.
@@ -298,42 +285,26 @@ func (m *Model) moveCursorDown() {
 		m.viewport.GotoBottom()
 		return
 	}
-	if m.cursorMsgIdx >= len(msgs)-1 {
+
+	curLine := m.findCursorLine()
+	if curLine < 0 || curLine+1 >= len(m.visualLineMap) {
 		m.viewport.GotoBottom()
 		return
 	}
 
-	m.cursorSubLine++
-	msg := msgs[m.cursorMsgIdx]
-	if msg.Type == "history_end" {
-		m.cursorMsgIdx++
-		m.cursorSubLine = 0
+	next := curLine + 1
+	nextIdx := m.visualLineMap[next]
+	if nextIdx == m.cursorMsgIdx {
+		m.cursorSubLine++
 	} else {
-		content := msg.Content
-		if msg.Type == "system" {
-			content = fmt.Sprintf("[SYSTEM]: %s", msg.Content)
-		} else if msg.FromID == m.id {
-			content = fmt.Sprintf("[You]: %s", msg.Content)
-		} else {
-			content = fmt.Sprintf("[%s]: %s", msg.From, msg.Content)
-		}
-		vLines := 1
-		for _, part := range strings.Split(content, "\n") {
-			if m.viewport.Width > 0 && len(part) > m.viewport.Width {
-				vLines += (len(part) - 1) / m.viewport.Width
-			}
-		}
-		if m.cursorSubLine >= vLines {
-			m.cursorMsgIdx++
-			m.cursorSubLine = 0
-		}
+		m.cursorMsgIdx = nextIdx
+		m.cursorSubLine = 0
 	}
-
 	m.updateViewportContent()
 
-	cursorLine := m.cursorLinePos()
-	if cursorLine >= m.viewport.YOffset+m.viewport.Height {
-		m.viewport.YOffset = cursorLine - m.viewport.Height + 1
+	cl := m.findCursorLine()
+	if cl >= m.viewport.YOffset+m.viewport.Height {
+		m.viewport.YOffset = cl - m.viewport.Height + 1
 	}
 }
 
@@ -351,50 +322,33 @@ func (m *Model) moveCursorUp() {
 		m.viewport.GotoBottom()
 		return
 	}
-	if m.cursorMsgIdx >= len(msgs) {
-		m.cursorMsgIdx = len(msgs) - 1
-	}
 
-	if m.cursorSubLine > 0 {
-		m.cursorSubLine--
-	} else if m.cursorMsgIdx > 0 {
-		m.cursorMsgIdx--
-		// Skip history_end markers
-		for m.cursorMsgIdx > 0 && msgs[m.cursorMsgIdx].Type == "history_end" {
-			m.cursorMsgIdx--
-		}
-		// Set to last sub-line of the previous message
-		prevMsg := msgs[m.cursorMsgIdx]
-		if prevMsg.Type == "history_end" {
-			m.cursorSubLine = 0
-		} else {
-			content := prevMsg.Content
-			if prevMsg.Type == "system" {
-				content = fmt.Sprintf("[SYSTEM]: %s", prevMsg.Content)
-			} else if prevMsg.FromID == m.id {
-				content = fmt.Sprintf("[You]: %s", prevMsg.Content)
-			} else {
-				content = fmt.Sprintf("[%s]: %s", prevMsg.From, prevMsg.Content)
-			}
-			vLines := 1
-			for _, part := range strings.Split(content, "\n") {
-				if len(part) > m.viewport.Width {
-					vLines += (len(part) - 1) / m.viewport.Width
-				}
-			}
-			m.cursorSubLine = vLines - 1
-		}
-	} else {
-		// At top, try loading history
+	curLine := m.findCursorLine()
+	if curLine <= 0 {
 		m.tryLoadHistory()
 		return
 	}
 
+	prev := curLine - 1
+	prevIdx := m.visualLineMap[prev]
+	if prevIdx == m.cursorMsgIdx {
+		m.cursorSubLine--
+	} else {
+		// Count how many visual lines prevIdx has
+		count := 0
+		for _, idx := range m.visualLineMap {
+			if idx == prevIdx {
+				count++
+			}
+		}
+		m.cursorMsgIdx = prevIdx
+		m.cursorSubLine = count - 1
+	}
 	m.updateViewportContent()
 
-	cursorLine := m.cursorLinePos()
-	if cursorLine < m.viewport.YOffset {
-		m.viewport.YOffset = cursorLine
+	cl := m.findCursorLine()
+	if cl >= 0 && cl < m.viewport.YOffset {
+		m.viewport.YOffset = cl
 	}
 }
 

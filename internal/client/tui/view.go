@@ -63,7 +63,11 @@ func renderMessages(msgs []protocol.Message, width int, myID string, cursorLine 
 		if msg.CreatedAt > 0 && prevTS > 0 && msg.CreatedAt-prevTS > 300 {
 			ts := time.Unix(msg.CreatedAt, 0).Format("15:04")
 			label := "─── " + ts + " ───"
-			b.WriteString(timestampStyle.Width(width).Align(lipgloss.Center).Render(label) + "\n")
+			tsLine := timestampStyle.Width(width).Align(lipgloss.Center).Render(label)
+			if visualLine == cursorLine {
+				tsLine = highlightStyle.Render(tsLine)
+			}
+			b.WriteString(tsLine + "\n")
 			lineMap = append(lineMap, -1)
 			visualLine++
 		}
@@ -73,7 +77,11 @@ func renderMessages(msgs []protocol.Message, width int, myID string, cursorLine 
 
 		// blank line before non-system messages (except at the start)
 		if msg.Type != "system" && b.Len() > 0 {
-			b.WriteString("\n")
+			if visualLine == cursorLine {
+				b.WriteString(highlightStyle.Width(width).Render("") + "\n")
+			} else {
+				b.WriteString("\n")
+			}
 			lineMap = append(lineMap, -1)
 			visualLine++
 		}
